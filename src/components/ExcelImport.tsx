@@ -406,11 +406,13 @@ export const ExcelImport: React.FC<Props> = ({
         return;
       }
       
-      const jsonData: ImportRow[] = XLSX.utils.sheet_to_json(worksheet, {
+      const rawData = XLSX.utils.sheet_to_json(worksheet, {
         header: 1,
         defval: '',
         blankrows: false
-      }).slice(1) // Remove header row
+      }) as any[][];
+
+      const jsonData: ImportRow[] = rawData.slice(1) // Remove header row
       .map((row: any[]) => ({
         'Test Case Name': String(row[0] || ''),
         'Description': String(row[1] || ''),

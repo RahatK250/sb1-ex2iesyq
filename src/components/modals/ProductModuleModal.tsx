@@ -9,6 +9,7 @@ interface Props {
   onSave: (data: CreateProductModuleInput) => Promise<void>;
   products: Product[];
   modules: Module[];
+  onAddModule?: () => void;
 }
 
 export const ProductModuleModal: React.FC<Props> = ({
@@ -17,6 +18,7 @@ export const ProductModuleModal: React.FC<Props> = ({
   onSave,
   products,
   modules,
+  onAddModule,
 }) => {
   const [formData, setFormData] = useState({
     product_id: '',
@@ -135,6 +137,14 @@ export const ProductModuleModal: React.FC<Props> = ({
                 onValueChange={(value) => setFormData(prev => ({ ...prev, module_id: value === 'all' ? '' : value }))}
                 placeholder={texts.selectModule}
                 allText={texts.selectModule}
+                extraActionLabel={'+ Add Module'}
+                onExtraAction={() => {
+                  // Close modal and call parent handler to navigate to Modules
+                  onClose();
+                  if (onAddModule) onAddModule();
+                }}
+                 /* showExtraWhenEmpty omitted so the extra action is visible even when there are items;
+                   footer is sticky by default */
               />
             </div>
             {!formData.product_id && (

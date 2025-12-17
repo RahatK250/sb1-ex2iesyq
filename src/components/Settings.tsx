@@ -9,6 +9,8 @@ import { ProductModuleModal } from './modals/ProductModuleModal';
 import { Toast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 
+type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules';
+
 interface SettingsProps {
   products: Product[];
   modules: Module[];
@@ -18,8 +20,6 @@ interface SettingsProps {
   initialTab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
 }
-
-type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules';
 
 export function Settings({ 
   products, 
@@ -834,17 +834,24 @@ export function Settings({
                               {item.is_active ? 'Active' : 'Inactive'}
                             </span>
                           </span>
-                          <ToggleSwitch
-                            isActive={item.is_active}
-                            onToggle={() => {
-                              console.log(`Toggling ${activeTab}:`, item.name, 'from', item.is_active, 'to', !item.is_active);
-                              if (activeTab === 'products') {
-                                handleToggleProduct(item);
-                              } else if (activeTab === 'modules') {
-                                handleToggleModule(item);
-                              }
-                            }}
-                          />
+                          {(() => {
+                            const currentTab = activeTab as 'products' | 'modules' | 'categories';
+                            return (
+                              <ToggleSwitch
+                                isActive={item.is_active}
+                                onToggle={() => {
+                                  console.log(`Toggling ${currentTab}:`, item.name, 'from', item.is_active, 'to', !item.is_active);
+                                  if (currentTab === 'products') {
+                                    handleToggleProduct(item as Product);
+                                  } else if (currentTab === 'modules') {
+                                    handleToggleModule(item as Module);
+                                  } else if (currentTab === 'categories') {
+                                    handleToggleCategory(item as Category);
+                                  }
+                                }}
+                              />
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -947,6 +954,12 @@ export function Settings({
         onSave={handleProductModuleSave}
         products={products}
         modules={modules}
+        onAddModule={() => {
+          // Switch to Modules tab and open Add Module modal
+          handleTabChange('modules');
+          setIsModuleModalOpen(true);
+          setIsProductModuleModalOpen(false);
+        }}
       />
     </div>
   );

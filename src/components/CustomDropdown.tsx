@@ -14,6 +14,11 @@ interface Props {
   allText?: string;
   className?: string;
   disabled?: boolean;
+  // Optional extra action shown inside the dropdown (e.g. "+ Add Module").
+  // If `showWhenEmpty` is true, the action is only shown when `options.length === 0`.
+  extraActionLabel?: string;
+  onExtraAction?: () => void;
+  showExtraWhenEmpty?: boolean;
 }
 
 export const CustomDropdown: React.FC<Props> = ({
@@ -24,6 +29,9 @@ export const CustomDropdown: React.FC<Props> = ({
   allText = 'All',
   className = '',
   disabled = false,
+  extraActionLabel,
+  onExtraAction,
+  showExtraWhenEmpty = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -75,8 +83,8 @@ export const CustomDropdown: React.FC<Props> = ({
 
       {/* Dropdown Options */}
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-hidden">
-          <div className="max-h-60 overflow-y-auto scrollbar-hide">
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-56 overflow-y-auto scrollbar-hide">
           {allOptions.map((option) => (
             <button
               key={option.id}
@@ -93,6 +101,24 @@ export const CustomDropdown: React.FC<Props> = ({
             </button>
           ))}
           </div>
+
+          {/* Footer: extra action always shown when provided (unless explicitly hidden by showExtraWhenEmpty and options exist) */}
+          {extraActionLabel && onExtraAction && (!showExtraWhenEmpty || options.length === 0) && (
+            <div className="border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 sticky bottom-0">
+              <div className="px-4 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onExtraAction();
+                  }}
+                  className="w-full text-left text-sm text-orange-500 hover:text-orange-600"
+                >
+                  {extraActionLabel}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
