@@ -1,14 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  // Don't throw here so the app can load in dev even when Supabase isn't configured.
+  // Components that call the client will receive rejected promises from the stub.
+  console.warn('Missing Supabase environment variables. Supabase features are disabled.');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false
@@ -22,4 +25,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       eventsPerSecond: 10
     }
   }
-});
+  })
+  : new Proxy({}, {
+    get: () => {
+      return (..._args: any[]) => Promise.reject(new Error('Supabase not configured'));
+    }
+  }) as any;
