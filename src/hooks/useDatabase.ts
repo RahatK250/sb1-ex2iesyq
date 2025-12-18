@@ -665,6 +665,7 @@ export const useDatabase = () => {
     
     // State setters for optimistic updates
     setProducts,
+    setModules,
     setAllProducts,
     setAllModules,
     setAllCategories,
