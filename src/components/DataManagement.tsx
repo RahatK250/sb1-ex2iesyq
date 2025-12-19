@@ -273,7 +273,7 @@ export const DataManagement: React.FC<Props> = ({
   const handleDeleteTestData = React.useCallback(async (id: string) => {
     const testDataItem = testData.find(item => item.id === id);
     const itemName = testDataItem?.name || 'this item';
-    
+
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Test Data',
@@ -284,13 +284,31 @@ export const DataManagement: React.FC<Props> = ({
           await deleteTestData(id);
           console.log('Test data delete request sent');
           setToast({ isVisible: true, message: `Test data "${itemName}" deleted successfully!`, type: 'success' });
+
+          // Close confirm dialog
+          setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+          // Reload test data with current filters so UI updates immediately
+          try {
+            const filters = {
+              product_id: selectedProduct.id,
+              module_id: selectedModule !== 'all' ? selectedModule : undefined,
+              category_id: selectedCategory !== 'all' ? selectedCategory : undefined,
+              search: searchQuery || undefined,
+            };
+            await onLoadTestData(filters);
+            console.log('Test data reloaded after deletion');
+          } catch (reloadErr) {
+            console.error('Error reloading test data after deletion:', reloadErr);
+          }
+
         } catch (error) {
           console.error('Error deleting test data:', error);
           setToast({ isVisible: true, message: `Failed to delete test data "${itemName}"`, type: 'error' });
         }
       }
     });
-  }, [testData, deleteTestData]);
+  }, [testData, deleteTestData, onLoadTestData, selectedProduct, selectedModule, selectedCategory, searchQuery]);
 
   const closeConfirmDialog = React.useCallback(() => {
     setConfirmDialog({

@@ -79,7 +79,7 @@ export const TestDataModal: React.FC<Props> = ({
   const texts = {
     addTestData: 'Create Test Data',
     editTestData: 'Edit Test Data',
-    testCaseName: 'Test Case Name',
+    testDataName: 'Test Data Name',
     description: 'Description',
     product: 'Product',
     module: 'Module',
@@ -95,6 +95,9 @@ export const TestDataModal: React.FC<Props> = ({
     fieldValue: 'Field Value',
     addField: 'Add Field',
     removeField: 'Remove Field',
+    fillInTestDataName: 'Fill in Test Data Name',
+    fillInExpected: 'Fill in Expected Result',
+    fillInDescription: 'Fill in Description',
     // Validation messages
     productRequired: 'Please select a product',
     moduleRequired: 'Please select a module',
@@ -102,7 +105,7 @@ export const TestDataModal: React.FC<Props> = ({
     testDataRequired: 'Please add at least one test data field',
     fieldKeyRequired: 'Field name is required',
     fieldValueRequired: 'Field value is required',
-    nameRequired: 'Test case name is required',
+    nameRequired: 'Test data name is required',
     expectedRequired: 'Expected result is required',
   };
 
@@ -372,11 +375,12 @@ export const TestDataModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {texts.testCaseName}
+                {texts.testDataName}
                 <span className="text-red-500 ml-1">*</span>
               </label>
               <input
                 type="text"
+                placeholder={`${texts.fillInTestDataName} *`}
                 value={formData.name}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, name: e.target.value }));
@@ -400,6 +404,7 @@ export const TestDataModal: React.FC<Props> = ({
               </label>
               <input
                 type="text"
+                placeholder={`${texts.fillInExpected} *`}
                 value={formData.expected}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, expected: e.target.value }));
@@ -422,6 +427,7 @@ export const TestDataModal: React.FC<Props> = ({
               {texts.description}
             </label>
             <textarea
+              placeholder={texts.fillInDescription}
               rows={2}
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}

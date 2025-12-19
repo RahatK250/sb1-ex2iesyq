@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVertical } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Product, Module, Category } from '../types';
 import { useDatabase } from '../hooks/useDatabase';
 import { ProductModal } from './modals/ProductModal';
@@ -8,6 +9,7 @@ import { CategoryModal } from './modals/CategoryModal';
 import { ProductModuleModal } from './modals/ProductModuleModal';
 import { Toast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CustomDropdown } from './CustomDropdown';
 
 type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules';
 
@@ -44,15 +46,35 @@ export function Settings({
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {}
+    onConfirm: () => {},
+    confirmText: undefined as string | undefined,
+    cancelText: undefined as string | undefined,
+    type: undefined as 'danger' | 'warning' | 'info' | undefined
   });
   const [draggedProduct, setDraggedProduct] = useState<Product | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [optimisticDesired, setOptimisticDesired] = useState<Record<string, boolean>>({});
+  const [optimisticLoading, setOptimisticLoading] = useState<Record<string, boolean>>({});
 
   // Update activeTab when initialTab changes
   React.useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  // Ensure page is scrolled to top when Settings mounts (or when activated)
+  React.useEffect(() => {
+    try {
+      // scroll window and common containers to top to avoid retained scroll position
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      if (document && document.documentElement) document.documentElement.scrollTop = 0;
+      if (document && document.body) document.body.scrollTop = 0;
+      // if there's a main app container with overflow, try to clear it as well
+      const appRoot = document.getElementById('root') || document.querySelector('body');
+      if (appRoot) (appRoot as HTMLElement).scrollTop = 0;
+    } catch (e) {
+      // noop
+    }
+  }, []);
 
   // Handle tab change
   const handleTabChange = async (tab: SettingsTab) => {
@@ -74,6 +96,13 @@ export function Settings({
     createProduct, 
     updateProduct, 
     deleteProduct, 
+    products: dbProducts,
+    allProducts,
+    modules: dbModules,
+    allModules,
+    categories: dbCategories,
+    allCategories,
+    productModules: dbProductModules,
     createModule, 
     updateModule, 
     deleteModule, 
@@ -84,6 +113,7 @@ export function Settings({
     deleteProductModule,
     updateProductOrders,
     setProducts,
+    setModules,
     setAllProducts,
     setAllModules,
     setAllCategories,
@@ -91,6 +121,35 @@ export function Settings({
     refetchModules,
     refetchCategories
   } = useDatabase();
+
+  const [statusFilter, setStatusFilter] = React.useState<'active' | 'inactive' | 'all'>('active');
+
+  // When user switches to 'inactive' or 'all' while on Modules/Categories tabs,
+  // ensure the admin lists are refetched so `allModules` / `allCategories` are populated.
+  React.useEffect(() => {
+    if (statusFilter === 'active') return;
+
+    // Only refetch the relevant admin list for the active tab
+    (async () => {
+      try {
+        if (activeTab === 'modules') {
+          await refetchModules();
+        } else if (activeTab === 'categories') {
+          await refetchCategories();
+        } else if (activeTab === 'products') {
+          await refetchProducts();
+        }
+      } catch (err) {
+        console.error('Error refetching admin lists for status filter change:', err);
+      }
+    })();
+  }, [statusFilter, activeTab, refetchModules, refetchCategories, refetchProducts]);
+
+  // Prefer hook state for UI (keeps toggles in sync); fall back to props if hook empty
+  const activeProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : products;
+  const activeModules = (dbModules && dbModules.length > 0) ? dbModules : modules;
+  const activeCategories = (dbCategories && dbCategories.length > 0) ? dbCategories : categories;
+  const activeProductModules = (dbProductModules && dbProductModules.length > 0) ? dbProductModules : productModules;
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
     setToast({ isVisible: true, message, type });
@@ -110,92 +169,175 @@ export function Settings({
   };
 
   const handleToggleProduct = async (product: Product) => {
+    // Use optimistic update then refetch to ensure canonical state
+    console.log('Toggling product:', product.name, 'from', product.is_active, 'to', !product.is_active);
+    const updatedProduct = { ...product, is_active: !product.is_active };
+
+    // Optimistic update - update both allProducts (admin list) and products (visible active list)
+    setAllProducts(prev => prev.map(p => p.id === product.id ? updatedProduct : p));
+    setProducts(prev => 
+      updatedProduct.is_active
+        ? prev.map(p => p.id === updatedProduct.id ? updatedProduct : p).concat(prev.find(p => p.id === updatedProduct.id) ? [] : [updatedProduct])
+        : prev.filter(p => p.id !== updatedProduct.id)
+    );
     try {
-      console.log('Toggling product:', product.name, 'from', product.is_active, 'to', !product.is_active);
-      const updatedProduct = { ...product, is_active: !product.is_active };
-      
-      // Method 1: Optimistic update - แสดงผลทันที
-      setAllProducts(prev => prev.map(p => 
-        p.id === product.id ? updatedProduct : p
-      ));
-      
-      // Send API request
-      await updateProduct(updatedProduct);
+      const updated = await updateProduct(updatedProduct);
       console.log('Product update successful');
       showToast(`Product "${product.name}" ${product.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
-      
-      // Method 2: Optional refetch for critical data consistency
-      // await refetchProducts();
-      
+
+      // After the update, refetch canonical products to ensure UI matches server
+      try {
+        await refetchProducts();
+      } catch (refetchErr) {
+        console.error('Error refetching products after update:', refetchErr);
+      }
+
+      // clear optimistic state for this product after refetch
+      console.log('Clearing optimistic state for product', product.id);
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[product.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[product.id];
+        return copy;
+      });
     } catch (error) {
       console.error('Product update failed:', error);
-      
-      // Method 1: Rollback on error
-      setAllProducts(prev => prev.map(p => 
-        p.id === product.id ? product : p
-      ));
+      // Rollback optimistic update
+      setAllProducts(prev => prev.map(p => p.id === product.id ? product : p));
       showToast(`Failed to update product "${product.name}" status`, 'error');
-      
-      // Method 2: Refetch on error to ensure consistency
-      await refetchProducts();
+
+      // Try to make sure we have canonical data
+      try {
+        await refetchProducts();
+      } catch (refetchErr) {
+        console.error('Error refetching products after failed update:', refetchErr);
+      }
+
+      // clear optimistic state on error as well
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[product.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[product.id];
+        return copy;
+      });
     }
   };
 
   const handleToggleModule = async (module: Module) => {
+    console.log('Toggling module:', module.name, 'from', module.is_active, 'to', !module.is_active);
+    const updatedModule = { ...module, is_active: !module.is_active };
+    setAllModules(prev => prev.map(m => m.id === module.id ? updatedModule : m));
+    setModules(prev => 
+      updatedModule.is_active
+        ? prev.map(m => m.id === updatedModule.id ? updatedModule : m).concat(prev.find(m => m.id === updatedModule.id) ? [] : [updatedModule])
+        : prev.filter(m => m.id !== updatedModule.id)
+    );
     try {
-      console.log('Toggling module:', module.name, 'from', module.is_active, 'to', !module.is_active);
-      const updatedModule = { ...module, is_active: !module.is_active };
-      
-      // Method 1: Optimistic update - แสดงผลทันที
-      setAllModules(prev => prev.map(m => 
-        m.id === module.id ? updatedModule : m
-      ));
-      
-      // Send API request
-      await updateModule(updatedModule);
+      const updated = await updateModule(updatedModule);
       console.log('Module update successful');
       showToast(`Module "${module.name}" ${module.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
-      
+
+      // Refetch modules to sync canonical state
+      try {
+        await refetchModules();
+      } catch (refetchErr) {
+        console.error('Error refetching modules after update:', refetchErr);
+      }
+
+      console.log('Clearing optimistic state for module', module.id);
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[module.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[module.id];
+        return copy;
+      });
     } catch (error) {
       console.error('Module update failed:', error);
-      
-      // Method 1: Rollback on error
-      setAllModules(prev => prev.map(m => 
-        m.id === module.id ? module : m
-      ));
+      setAllModules(prev => prev.map(m => m.id === module.id ? module : m));
       showToast(`Failed to update module "${module.name}" status`, 'error');
-      
-      // Method 2: Refetch on error to ensure consistency
-      await refetchModules();
+      try {
+        await refetchModules();
+      } catch (refetchErr) {
+        console.error('Error refetching modules after failed update:', refetchErr);
+      }
+
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[module.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[module.id];
+        return copy;
+      });
     }
   };
 
   const handleToggleCategory = async (category: Category) => {
+    console.log('Toggling category:', category.name, 'from', category.is_active, 'to', !category.is_active);
+    const updatedCategory = { ...category, is_active: !category.is_active };
+    setAllCategories(prev => prev.map(c => c.id === category.id ? updatedCategory : c));
+    setCategories(prev => 
+      updatedCategory.is_active
+        ? prev.map(c => c.id === updatedCategory.id ? updatedCategory : c).concat(prev.find(c => c.id === updatedCategory.id) ? [] : [updatedCategory])
+        : prev.filter(c => c.id !== updatedCategory.id)
+    );
     try {
-      console.log('Toggling category:', category.name, 'from', category.is_active, 'to', !category.is_active);
-      const updatedCategory = { ...category, is_active: !category.is_active };
-      
-      // Method 1: Optimistic update - แสดงผลทันที
-      setAllCategories(prev => prev.map(c => 
-        c.id === category.id ? updatedCategory : c
-      ));
-      
-      // Send API request
-      await updateCategory(updatedCategory);
+      const updated = await updateCategory(updatedCategory);
       console.log('Category update successful');
       showToast(`Category "${category.name}" ${category.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
-      
+
+      // Refetch categories to sync canonical state
+      try {
+        await refetchCategories();
+      } catch (refetchErr) {
+        console.error('Error refetching categories after update:', refetchErr);
+      }
+
+      console.log('Clearing optimistic state for category', category.id);
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[category.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[category.id];
+        return copy;
+      });
     } catch (error) {
       console.error('Category update failed:', error);
-      
-      // Method 1: Rollback on error
-      setAllCategories(prev => prev.map(c => 
-        c.id === category.id ? category : c
-      ));
+      setAllCategories(prev => prev.map(c => c.id === category.id ? category : c));
       showToast(`Failed to update category "${category.name}" status`, 'error');
-      
-      // Method 2: Refetch on error to ensure consistency
-      await refetchCategories();
+      try {
+        await refetchCategories();
+      } catch (refetchErr) {
+        console.error('Error refetching categories after failed update:', refetchErr);
+      }
+
+      setOptimisticDesired(prev => {
+        const copy = { ...prev };
+        delete copy[category.id];
+        return copy;
+      });
+      setOptimisticLoading(prev => {
+        const copy = { ...prev };
+        delete copy[category.id];
+        return copy;
+      });
     }
   };
 
@@ -327,7 +469,10 @@ export function Settings({
         } catch (error) {
           showToast('Failed to remove module from product', 'error');
         }
-      }
+      },
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      type: 'danger'
     });
   };
 
@@ -451,30 +596,38 @@ export function Settings({
   const ToggleSwitch = React.memo(({ 
     isActive, 
     onToggle, 
-    disabled = false 
+    disabled = false,
+    loading = false
   }: { 
     isActive: boolean; 
     onToggle: () => void; 
-    disabled?: boolean 
+    disabled?: boolean,
+    loading?: boolean
   }) => {
-    console.log('ToggleSwitch render:', { isActive, disabled });
+    console.log('ToggleSwitch render:', { isActive, disabled, loading });
     
     return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-        isActive 
-          ? 'bg-green-500 focus:ring-green-500' 
-          : 'bg-gray-300 dark:bg-gray-600'
-      }`}
-    >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-all duration-200 ease-in-out shadow-lg ${
-          isActive ? 'translate-x-6' : 'translate-x-1'
+      <button
+        onClick={onToggle}
+        disabled={disabled || loading}
+        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+          isActive 
+            ? 'bg-green-500 focus:ring-green-500' 
+            : 'bg-gray-300 dark:bg-gray-600'
         }`}
-      />
-    </button>
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-all duration-200 ease-in-out shadow-lg ${
+            isActive ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+
+        {loading && (
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <Loader2 className="w-4 h-4 text-white animate-spin" />
+          </div>
+        )}
+      </button>
     );
   });
   
@@ -482,9 +635,9 @@ export function Settings({
 
   // Get modules for a specific product
   const getModulesForProduct = (productId: string) => {
-    const assignedModules = productModules
+    const assignedModules = activeProductModules
       .filter(pm => pm.product_id === productId && pm.is_active)
-      .map(pm => modules.find(m => m.id === pm.module_id))
+      .map(pm => activeModules.find(m => m.id === pm.module_id))
       .filter(Boolean);
     
     // Remove duplicates by module id
@@ -497,7 +650,12 @@ export function Settings({
 
   // Get products grouped with their modules
   const getProductsWithModules = () => {
-    return products.map(product => ({
+    // Use allProducts when filter requires showing inactive items, otherwise use activeProducts
+    const sourceProducts = statusFilter === 'all' || statusFilter === 'inactive'
+      ? (allProducts && allProducts.length > 0 ? allProducts : activeProducts)
+      : activeProducts;
+
+    return sourceProducts.map(product => ({
       ...product,
       modules: getModulesForProduct(product.id)
     }));
@@ -505,7 +663,14 @@ export function Settings({
   
   // Get sorted products for display
   const getSortedProducts = () => {
-    return [...products].sort((a, b) => {
+    let source: any[] = activeProducts;
+    if (statusFilter === 'all') {
+      source = (allProducts && allProducts.length > 0) ? allProducts : activeProducts;
+    } else if (statusFilter === 'inactive') {
+      source = (allProducts && allProducts.length > 0) ? allProducts.filter(p => !p.is_active) : activeProducts.filter(p => !p.is_active);
+    }
+
+    return [...source].sort((a, b) => {
       const orderA = a.display_order || 0;
       const orderB = b.display_order || 0;
       return orderA - orderB;
@@ -513,12 +678,51 @@ export function Settings({
   };
   
   const tabs = [
-    { id: 'products' as const, label: 'Products', icon: Package, data: products },
-    { id: 'modules' as const, label: 'Modules', icon: Layers, data: modules },
-    { id: 'product-modules' as const, label: 'Product Modules', icon: Link, data: productModules },
+    { id: 'products' as const, label: 'Products', icon: Package, data: activeProducts },
+    { id: 'modules' as const, label: 'Modules', icon: Layers, data: activeModules },
+    { id: 'product-modules' as const, label: 'Product Modules', icon: Link, data: activeProductModules },
   ];
 
   const activeTabData = tabs.find(tab => tab.id === activeTab);
+
+  // Compute displayed items for non-products tabs using statusFilter
+  const displayedGridItems = React.useMemo(() => {
+    if (activeTab === 'products') return getSortedProducts();
+
+    // For modules/categories, the hook provides both active lists (activeModules/activeCategories)
+    // and admin lists (allModules/allCategories). When filtering for inactive or all, prefer the
+    // admin lists so inactive items are included; otherwise use the active list.
+    if (activeTab === 'modules') {
+      const src = (statusFilter === 'all' || statusFilter === 'inactive')
+        ? (allModules && allModules.length > 0 ? allModules : activeModules)
+        : activeModules;
+      if (statusFilter === 'all') return src;
+      if (statusFilter === 'active') return src.filter((d: any) => d.is_active);
+      if (statusFilter === 'inactive') return src.filter((d: any) => !d.is_active);
+      return src;
+    }
+
+    if (activeTab === 'categories') {
+      const src = (statusFilter === 'all' || statusFilter === 'inactive')
+        ? (allCategories && allCategories.length > 0 ? allCategories : activeCategories)
+        : activeCategories;
+      if (statusFilter === 'all') return src;
+      if (statusFilter === 'active') return src.filter((d: any) => d.is_active);
+      if (statusFilter === 'inactive') return src.filter((d: any) => !d.is_active);
+      return src;
+    }
+
+    // product-modules: use productModules (includes is_active flag), filter directly
+    if (activeTab === 'product-modules') {
+      const src = activeProductModules || [];
+      if (statusFilter === 'all') return src;
+      if (statusFilter === 'active') return src.filter((d: any) => d.is_active);
+      if (statusFilter === 'inactive') return src.filter((d: any) => !d.is_active);
+      return src;
+    }
+
+    return activeTabData?.data || [];
+  }, [activeTab, activeTabData, statusFilter]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -535,9 +739,9 @@ export function Settings({
         onConfirm={confirmDialog.onConfirm}
         title={confirmDialog.title}
         message={confirmDialog.message}
-        confirmText="Remove"
-        cancelText="Cancel"
-        type="danger"
+        confirmText={confirmDialog.confirmText ?? 'Confirm'}
+        cancelText={confirmDialog.cancelText ?? 'Cancel'}
+        type={confirmDialog.type ?? 'danger'}
       />
 
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -719,18 +923,31 @@ export function Settings({
                       Manage {activeTabData?.label}
                     </h2>
                     {activeTab === 'products' && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Drag and drop to reorder products
-                      </p>
+                      <>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Drag and drop to reorder products
+                        </p>
+                      </>
                     )}
                   </div>
-                  <button
-                    onClick={handleAddNew}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 lg:py-3 rounded-lg transition-colors flex items-center justify-center space-x-2 w-full sm:w-auto"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add New</span>
-                  </button>
+                  <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
+                    <div className="hidden sm:block">
+                      <CustomDropdown
+                        options={[{ id: 'active', name: 'Active' }, { id: 'inactive', name: 'Inactive' }]}
+                        selectedValue={statusFilter}
+                        onValueChange={(v) => setStatusFilter(v as 'active' | 'inactive' | 'all')}
+                        allText="All"
+                        className="w-40"
+                      />
+                    </div>
+                    <button
+                      onClick={handleAddNew}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 lg:py-3 rounded-lg transition-colors flex items-center justify-center space-x-2 w-full sm:w-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add New</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Data Cards */}
@@ -787,15 +1004,36 @@ export function Settings({
                           {/* Status and Actions */}
                           <div className="flex items-center space-x-4 flex-shrink-0">
                             <div className="flex items-center space-x-2">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                <span className={`font-medium ${item.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  {item.is_active ? 'Active' : 'Inactive'}
-                                </span>
-                              </span>
-                              <ToggleSwitch
-                                isActive={item.is_active}
-                                onToggle={() => handleToggleProduct(item)}
-                              />
+                              {(() => {
+                                const displayActive = typeof optimisticDesired[item.id] === 'boolean' ? optimisticDesired[item.id] : item.is_active;
+                                return (
+                                  <>
+                                    <span className={`text-xs text-gray-500 dark:text-gray-400`}>
+                                      <span className={`font-medium ${displayActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {displayActive ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </span>
+                                    <ToggleSwitch
+                                      isActive={displayActive}
+                                      loading={Object.prototype.hasOwnProperty.call(optimisticLoading, item.id)}
+                                      onToggle={() => {
+                                        const willBeActive = !(typeof optimisticDesired[item.id] === 'boolean' ? optimisticDesired[item.id] : item.is_active);
+                                        console.log('Direct toggle product', item.id, willBeActive);
+                                        // optimistic update: set desired and loading immediately
+                                        setOptimisticDesired(prev => ({ ...prev, [item.id]: willBeActive }));
+                                        setOptimisticLoading(prev => ({ ...prev, [item.id]: true }));
+                                        (async () => {
+                                          try {
+                                            await handleToggleProduct(item);
+                                          } catch (err) {
+                                            console.error('Toggle product error:', err);
+                                          }
+                                        })();
+                                      }}
+                                    />
+                                  </>
+                                );
+                              })()}
                             </div>
                             
                             <button
@@ -813,7 +1051,7 @@ export function Settings({
                 ) : (
                   // Other tabs with grid layout
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-                    {activeTabData?.data.map((item: any) => (
+                    {displayedGridItems.map((item: any) => (
                     <div
                       key={item.id}
                       className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4 lg:p-6 hover:shadow-lg transition-shadow duration-200"
@@ -829,27 +1067,40 @@ export function Settings({
                           </p>
                         </div>
                         <div className="flex items-center space-x-2 flex-shrink-0">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            <span className={`font-medium ${item.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {item.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                          </span>
                           {(() => {
                             const currentTab = activeTab as 'products' | 'modules' | 'categories';
+                            const displayActive = typeof optimisticDesired[item.id] === 'boolean' ? optimisticDesired[item.id] : item.is_active;
                             return (
-                              <ToggleSwitch
-                                isActive={item.is_active}
-                                onToggle={() => {
-                                  console.log(`Toggling ${currentTab}:`, item.name, 'from', item.is_active, 'to', !item.is_active);
-                                  if (currentTab === 'products') {
-                                    handleToggleProduct(item as Product);
-                                  } else if (currentTab === 'modules') {
-                                    handleToggleModule(item as Module);
-                                  } else if (currentTab === 'categories') {
-                                    handleToggleCategory(item as Category);
-                                  }
-                                }}
-                              />
+                              <>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  <span className={`font-medium ${displayActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {displayActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                </span>
+                                <ToggleSwitch
+                                  isActive={displayActive}
+                                  loading={Object.prototype.hasOwnProperty.call(optimisticLoading, item.id)}
+                                  onToggle={() => {
+                                    const willBeActive = !(typeof optimisticDesired[item.id] === 'boolean' ? optimisticDesired[item.id] : item.is_active);
+                                    console.log('Direct toggle item', item.id, willBeActive, currentTab);
+                                    setOptimisticDesired(prev => ({ ...prev, [item.id]: willBeActive }));
+                                    setOptimisticLoading(prev => ({ ...prev, [item.id]: true }));
+                                    (async () => {
+                                      try {
+                                        if (currentTab === 'products') {
+                                          await handleToggleProduct(item as Product);
+                                        } else if (currentTab === 'modules') {
+                                          await handleToggleModule(item as Module);
+                                        } else if (currentTab === 'categories') {
+                                          await handleToggleCategory(item as Category);
+                                        }
+                                      } catch (err) {
+                                        console.error('Toggle error:', err);
+                                      }
+                                    })();
+                                  }}
+                                />
+                              </>
                             );
                           })()}
                         </div>
@@ -895,7 +1146,7 @@ export function Settings({
                   </div>
                 )}
 
-                {activeTabData?.data.length === 0 && (
+                {displayedGridItems.length === 0 && (
                   <div className="text-center py-8 lg:py-12">
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 lg:p-8">
                       <div className="text-gray-500 dark:text-gray-400 mb-4">
