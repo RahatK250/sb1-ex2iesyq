@@ -130,7 +130,7 @@ export const getModulesByProductId = async (productId: string): Promise<Module[]
   
   if (error) throw error;
   
-  const modules = data?.map((item: { modules: any; }) => item.modules).filter((module: { is_active: any; }) => module && module.is_active) || [];
+  const modules = data?.map(item => item.modules).filter(module => module && module.is_active) || [];
   console.log('Found modules for product:', productId, modules);
   
   return modules;
