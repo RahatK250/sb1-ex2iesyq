@@ -1,9 +1,12 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { AuthProvider } from './hooks/useAuth';
 import { useApp } from './hooks/useApp';
 import { HomePage } from './pages/HomePage';
 import { DataPage } from './pages/DataPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LoginPage } from './pages/LoginPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import { useDatabase } from './hooks/useDatabase';
 
 function AppContent() {
@@ -66,26 +69,34 @@ function AppContent() {
       <Route
         path="/settings"
         element={
-          <SettingsPage
-            products={allProducts}
-            modules={allModules}
-            categories={allCategories}
-            productModules={productModules}
-            onNavigateBack={handleNavigateBack}
-          />
+          <ProtectedRoute allowedRoles={[ 'admin' ]}>
+            <SettingsPage
+              products={allProducts}
+              modules={allModules}
+              categories={allCategories}
+              productModules={productModules}
+              onNavigateBack={handleNavigateBack}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/settings/:tab"
         element={
-          <SettingsPage
-            products={allProducts}
-            modules={allModules}
-            categories={allCategories}
-            productModules={productModules}
-            onNavigateBack={handleNavigateBack}
-          />
+          <ProtectedRoute allowedRoles={[ 'admin' ]}>
+            <SettingsPage
+              products={allProducts}
+              modules={allModules}
+              categories={allCategories}
+              productModules={productModules}
+              onNavigateBack={handleNavigateBack}
+            />
+          </ProtectedRoute>
         }
+      />
+      <Route
+        path="/login"
+        element={<LoginPage />}
       />
       {/* Redirect unknown routes to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -96,7 +107,9 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

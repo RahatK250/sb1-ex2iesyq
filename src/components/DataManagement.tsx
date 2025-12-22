@@ -1,5 +1,6 @@
 import React from 'react';
-import { Search, Settings, Plus, Edit, Trash2, Copy, X, ChevronLeft, ChevronRight, Package, Layers, Tag, Menu, FileSpreadsheet, MoreVertical, Files } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Settings, Plus, Edit, Trash2, Copy, X, ChevronLeft, ChevronRight, Package, Layers, Tag, Menu, FileSpreadsheet, MoreVertical, Files, LogOut } from 'lucide-react';
 import { Product, TestData, Module, Category } from '../types';
 import { useDatabase } from '../hooks/useDatabase';
 import { Toast } from './Toast';
@@ -8,6 +9,7 @@ import { TestDataModal } from './modals/TestDataModal';
 import { ExcelImport } from './ExcelImport';
 import { CustomProductDropdown } from './CustomProductDropdown';
 import { CustomDropdown } from './CustomDropdown';
+import { useAuth } from '../hooks/useAuth';
 
 interface Props {
   selectedProduct: Product;
@@ -49,6 +51,17 @@ export const DataManagement: React.FC<Props> = ({
   onLoadTestData,
   onGetModulesByProduct,
 }) => {
+  const { role, logout, email } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = React.useCallback(() => {
+    try {
+      logout();
+    } finally {
+      // navigate to home so auth modal (on HomePage) appears
+      navigate('/');
+    }
+  }, [logout, navigate]);
   const [toast, setToast] = React.useState({ isVisible: false, message: '', type: 'success' as 'success' | 'error' | 'warning' });
   const [showTestDataModal, setShowTestDataModal] = React.useState(false);
   const [showExcelImport, setShowExcelImport] = React.useState(false);
@@ -431,6 +444,7 @@ export const DataManagement: React.FC<Props> = ({
                 />
               </div>
 
+
               {/* Categories Filter */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -446,15 +460,34 @@ export const DataManagement: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Settings Button */}
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={onNavigateToSettings}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
-              >
-                <Settings className="w-5 h-5" />
-                <span className="font-medium">{texts.setting}</span>
-              </button>
+            {/* Email (above separator) */}
+            {email && (
+              <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 py-4">{'Account: '+email}</div>
+            )}
+
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700 space-y-3">
+              {role !== 'reporter' && (
+                <div>
+                  <button
+                    onClick={onNavigateToSettings}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
+                  >
+                    <Settings className="w-5 h-5" />
+                    <span className="font-medium">{texts.setting}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Logout button (same style as Settings) */}
+              <div>
+                  <button
+                    onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="font-medium">Logout</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -538,14 +571,24 @@ export const DataManagement: React.FC<Props> = ({
               />
             </div>
 
-            <div className="mt-auto pt-8">
-            <button
-              onClick={onNavigateToSettings}
-              className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
-            >
-              <Settings className="w-5 h-5" />
-              <span className="font-medium">{texts.setting}</span>
-            </button>
+            <div className="mt-auto pt-8 space-y-3">
+              {role !== 'reporter' && (
+                <button
+                  onClick={onNavigateToSettings}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
+                >
+                  <Settings className="w-5 h-5" />
+                  <span className="font-medium">{texts.setting}</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Logout</span>
+              </button>
             </div>
             </div>
           </div>
@@ -594,19 +637,23 @@ export const DataManagement: React.FC<Props> = ({
               />
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={handleImportExcel}
-                className="px-4 py-2 lg:py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap flex items-center space-x-2"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Import Excel</span>
-              </button>
-              <button
-                onClick={handleAddTestData}
-                className="px-4 py-2 lg:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors whitespace-nowrap"
-              >
-                {texts.addData}
-              </button>
+              {role !== 'reporter' && (
+                <>
+                  <button
+                    onClick={handleImportExcel}
+                    className="px-4 py-2 lg:py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap flex items-center space-x-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Import Excel</span>
+                  </button>
+                  <button
+                    onClick={handleAddTestData}
+                    className="px-4 py-2 lg:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors whitespace-nowrap"
+                  >
+                    {texts.addData}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -617,12 +664,14 @@ export const DataManagement: React.FC<Props> = ({
                 <p className="text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-4">
                   {texts.notFoundDataTest}
                 </p>
-                <button
-                  onClick={handleAddTestData}
-                  className="px-4 lg:px-6 py-2 lg:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                >
-                  {texts.addNewTestData}
-                </button>
+                {role !== 'reporter' && (
+                  <button
+                    onClick={handleAddTestData}
+                    className="px-4 lg:px-6 py-2 lg:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                  >
+                    {texts.addNewTestData}
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -639,27 +688,31 @@ export const DataManagement: React.FC<Props> = ({
                     {/* Action Buttons - Top Right */}
                     <div className="flex justify-end items-center mb-4">
                       <div className="flex items-center space-x-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleEditTestData(item)}
-                          className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleCopyTestData(item)}
-                          className="p-2 text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Copy Test Data"
-                        >
-                          <Files className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTestData(item.id)}
-                          className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {role !== 'reporter' && (
+                          <>
+                            <button
+                              onClick={() => handleEditTestData(item)}
+                              className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleCopyTestData(item)}
+                              className="p-2 text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Copy Test Data"
+                            >
+                              <Files className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTestData(item.id)}
+                              className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 

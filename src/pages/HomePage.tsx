@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ProductCarousel } from '../components/ProductCarousel';
 import { Product } from '../types';
+import { AuthModal } from '../components/AuthModal';
+import { useAuth } from '../hooks/useAuth';
 
 interface Props {
   products: Product[];
@@ -19,6 +21,7 @@ const createProductSlug = (name: string): string => {
 };
 export const HomePage: React.FC<Props> = ({ products, onSelectProduct }) => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const handleSelectProduct = (product: Product) => {
     onSelectProduct(product);
@@ -27,9 +30,14 @@ export const HomePage: React.FC<Props> = ({ products, onSelectProduct }) => {
   };
 
   return (
-    <ProductCarousel
-      products={products}
-      onSelectProduct={handleSelectProduct}
-    />
+    <>
+      {!isAuthenticated && <AuthModal />}
+      {isAuthenticated && (
+        <ProductCarousel
+          products={products}
+          onSelectProduct={handleSelectProduct}
+        />
+      )}
+    </>
   );
 };
