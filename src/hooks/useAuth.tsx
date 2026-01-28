@@ -7,6 +7,7 @@ interface AuthContextValue {
   email: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  loginWithOffice365: (accountInfo: { mail: string; userPrincipalName: string }) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
 }
 
@@ -49,10 +50,37 @@ export const AuthProvider: React.FC<React.PropsWithChildren<Record<string, unkno
     return { ok: false, message: 'Please check your credentials' };
   };
 
+  const loginWithOffice365 = async (accountInfo: { mail: string; userPrincipalName: string }) => {
+    try {
+      const userEmail = accountInfo.mail || accountInfo.userPrincipalName;
+      
+      if (!userEmail) {
+        return { ok: false, message: 'Unable to retrieve email from Office 365 account' };
+      }
+
+      setRole('admin');
+      setEmail(userEmail);
+      try { 
+        localStorage.setItem('qollect_role', 'admin');
+        localStorage.setItem('qollect_email', userEmail);
+        localStorage.setItem('qollect_auth_method', 'office365');
+      } catch (e) {}
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: 'Office 365 login failed' };
+    }
+  };
+
   const logout = () => {
     setRole(null);
     setEmail(null);
-    try { localStorage.removeItem('qollect_role'); localStorage.removeItem('qollect_email'); } catch (e) {}
+    try { 
+      localStorage.removeItem('qollect_role');
+      localStorage.removeItem('qollect_email');
+      localStorage.removeItem('qollect_auth_method');
+      // Clear app state including selected product on logout
+      localStorage.removeItem('appState');
+    } catch (e) {}
   };
 
   const value: AuthContextValue = {
@@ -60,6 +88,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<Record<string, unkno
     email,
     isAuthenticated: role !== null,
     login,
+    loginWithOffice365,
     logout,
   };
 

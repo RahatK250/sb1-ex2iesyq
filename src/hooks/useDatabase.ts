@@ -30,16 +30,13 @@ export const useDatabase = () => {
 
   // Setup realtime subscriptions
   useEffect(() => {
-    console.log('Setting up realtime subscriptions...');
-    
     // Products subscription
     const productsSubscription = supabase
       .channel('products-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'products' },
         async (payload) => {
-          console.log('Products change detected:', payload);
-          // Reload products data
+          // Reload products data silently
           try {
             const [productsData, allProductsData] = await Promise.all([
               db.getProducts(),
@@ -47,9 +44,8 @@ export const useDatabase = () => {
             ]);
             setProducts(productsData);
             setAllProducts(allProductsData);
-            console.log('Products updated successfully');
           } catch (error) {
-            console.error('Error reloading products:', error);
+            console.error('[useDatabase] Error reloading products:', error);
           }
         }
       )
@@ -61,8 +57,6 @@ export const useDatabase = () => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'modules' },
         async (payload) => {
-          console.log('Modules change detected:', payload);
-          // Reload modules data
           try {
             const [modulesData, allModulesData] = await Promise.all([
               db.getModules(),
@@ -70,9 +64,8 @@ export const useDatabase = () => {
             ]);
             setModules(modulesData);
             setAllModules(allModulesData);
-            console.log('Modules updated successfully');
           } catch (error) {
-            console.error('Error reloading modules:', error);
+            console.error('[useDatabase] Error reloading modules:', error);
           }
         }
       )
@@ -84,8 +77,6 @@ export const useDatabase = () => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'categories' },
         async (payload) => {
-          console.log('Categories change detected:', payload);
-          // Reload categories data
           try {
             const [categoriesData, allCategoriesData] = await Promise.all([
               db.getCategories(),
@@ -93,9 +84,8 @@ export const useDatabase = () => {
             ]);
             setCategories(categoriesData);
             setAllCategories(allCategoriesData);
-            console.log('Categories updated successfully');
           } catch (error) {
-            console.error('Error reloading categories:', error);
+            console.error('[useDatabase] Error reloading categories:', error);
           }
         }
       )
@@ -107,14 +97,11 @@ export const useDatabase = () => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'product_modules' },
         async (payload) => {
-          console.log('Product modules change detected:', payload);
-          // Reload product modules data
           try {
             const productModulesData = await db.getAllProductModules();
             setProductModules(productModulesData);
-            console.log('Product modules updated successfully');
           } catch (error) {
-            console.error('Error reloading product modules:', error);
+            console.error('[useDatabase] Error reloading product modules:', error);
           }
         }
       )
@@ -126,44 +113,27 @@ export const useDatabase = () => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'test_data' },
         async (payload) => {
-          console.log('Test data change detected:', payload);
           try {
             // Handle test data changes with hard delete
             if (payload.eventType === 'INSERT' && payload.new) {
-              console.log('Adding new test data:', payload.new);
               setTestData(prev => [payload.new as TestData, ...prev]);
             } else if (payload.eventType === 'UPDATE' && payload.new) {
-              console.log('Updating test data:', payload.new);
               const updatedItem = payload.new as TestData;
               setTestData(prev => prev.map(item => 
                 item.id === updatedItem.id ? updatedItem : item
               ));
             } else if (payload.eventType === 'DELETE' && payload.old) {
-              console.log('Deleting test data:', payload.old);
               setTestData(prev => prev.filter(item => item.id !== payload.old.id));
             }
-            console.log('Test data updated successfully');
           } catch (error) {
-            console.error('Error handling test data change:', error);
+            console.error('[useDatabase] Error handling test data change:', error);
           }
         }
       )
       .subscribe();
 
-    // Check subscription status
-    setTimeout(() => {
-      console.log('Subscription statuses:', {
-        products: productsSubscription.state,
-        modules: modulesSubscription.state,
-        categories: categoriesSubscription.state,
-        productModules: productModulesSubscription.state,
-        testData: testDataSubscription.state
-      });
-    }, 1000);
-
     // Cleanup subscriptions
     return () => {
-      console.log('Cleaning up subscriptions...');
       productsSubscription.unsubscribe();
       modulesSubscription.unsubscribe();
       categoriesSubscription.unsubscribe();
@@ -228,8 +198,6 @@ export const useDatabase = () => {
   // Products CRUD
   const createProduct = async (input: CreateProductInput) => {
     try {
-      console.log('Creating product:', input);
-      
       // Get the highest display_order and add 1
       const { data: maxOrderData } = await supabase
         .from('products')
@@ -240,7 +208,6 @@ export const useDatabase = () => {
       const nextOrder = maxOrderData && maxOrderData[0] ? (maxOrderData[0].display_order || 0) + 1 : 1;
       
       const newProduct = await db.createProduct(input);
-      console.log('Product created successfully:', newProduct);
       
       // Method 1: Direct state update (fast, responsive)
       setAllProducts(prev => [...prev, newProduct]);
@@ -250,7 +217,7 @@ export const useDatabase = () => {
       
       return newProduct;
     } catch (err) {
-      console.error('Error creating product:', err);
+      console.error('[useDatabase] Error creating product:', err);
       setError(err instanceof Error ? err.message : 'Failed to create product');
       throw err;
     }
@@ -259,14 +226,10 @@ export const useDatabase = () => {
   // Update product orders
   const updateProductOrders = async (updates: { id: string; display_order: number }[]) => {
     try {
-      console.log('Updating product orders:', updates);
       await db.updateProductOrders(updates);
-      console.log('Product orders updated successfully');
-      
       // ไม่ต้อง refresh ที่นี่ เพราะจะทำใน Settings component
-      
     } catch (err) {
-      console.error('Error updating product orders:', err);
+      console.error('[useDatabase] Error updating product orders:', err);
       setError(err instanceof Error ? err.message : 'Failed to update product orders');
       throw err;
     }
@@ -274,9 +237,7 @@ export const useDatabase = () => {
 
   const updateProduct = async (input: UpdateProductInput) => {
     try {
-      console.log('Updating product:', input);
       const updatedProduct = await db.updateProduct(input);
-      console.log('Product updated successfully:', updatedProduct);
       
       // Method 1: Direct state update (fast, responsive)
       setAllProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
@@ -290,7 +251,7 @@ export const useDatabase = () => {
       
       return updatedProduct;
     } catch (err) {
-      console.error('Error updating product:', err);
+      console.error('[useDatabase] Error updating product:', err);
       setError(err instanceof Error ? err.message : 'Failed to update product');
       throw err;
     }
@@ -298,16 +259,14 @@ export const useDatabase = () => {
 
   const deleteProduct = async (id: string) => {
     try {
-      console.log('Deleting product:', id);
       await db.deleteProduct(id);
-      console.log('Product deleted successfully');
       
       // Method 1: Direct state update (fast, responsive)
       setAllProducts(prev => prev.map(p => p.id === id ? { ...p, is_active: false } : p));
       setProducts(prev => prev.filter(p => p.id !== id));
       
     } catch (err) {
-      console.error('Error deleting product:', err);
+      console.error('[useDatabase] Error deleting product:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete product');
       throw err;
     }
@@ -316,9 +275,7 @@ export const useDatabase = () => {
   // Modules CRUD
   const createModule = async (input: CreateModuleInput) => {
     try {
-      console.log('Creating module:', input);
       const newModule = await db.createModule(input);
-      console.log('Module created successfully:', newModule);
       
       // Method 1: Direct state update (fast, responsive)
       setAllModules(prev => [...prev, newModule]);
@@ -336,9 +293,7 @@ export const useDatabase = () => {
 
   const updateModule = async (input: UpdateModuleInput) => {
     try {
-      console.log('Updating module:', input);
       const updatedModule = await db.updateModule(input);
-      console.log('Module updated successfully:', updatedModule);
       
       // Method 1: Direct state update (fast, responsive)
       setAllModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));

@@ -170,7 +170,6 @@ export function Settings({
 
   const handleToggleProduct = async (product: Product) => {
     // Use optimistic update then refetch to ensure canonical state
-    console.log('Toggling product:', product.name, 'from', product.is_active, 'to', !product.is_active);
     const updatedProduct = { ...product, is_active: !product.is_active };
 
     // Optimistic update - update both allProducts (admin list) and products (visible active list)
@@ -182,7 +181,6 @@ export function Settings({
     );
     try {
       const updated = await updateProduct(updatedProduct);
-      console.log('Product update successful');
       showToast(`Product "${product.name}" ${product.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
 
       // After the update, refetch canonical products to ensure UI matches server
@@ -193,7 +191,6 @@ export function Settings({
       }
 
       // clear optimistic state for this product after refetch
-      console.log('Clearing optimistic state for product', product.id);
       setOptimisticDesired(prev => {
         const copy = { ...prev };
         delete copy[product.id];
@@ -232,7 +229,6 @@ export function Settings({
   };
 
   const handleToggleModule = async (module: Module) => {
-    console.log('Toggling module:', module.name, 'from', module.is_active, 'to', !module.is_active);
     const updatedModule = { ...module, is_active: !module.is_active };
     setAllModules(prev => prev.map(m => m.id === module.id ? updatedModule : m));
     setModules(prev => 
@@ -287,7 +283,6 @@ export function Settings({
   };
 
   const handleToggleCategory = async (category: Category) => {
-    console.log('Toggling category:', category.name, 'from', category.is_active, 'to', !category.is_active);
     const updatedCategory = { ...category, is_active: !category.is_active };
     setAllCategories(prev => prev.map(c => c.id === category.id ? updatedCategory : c));
     setCategories(prev => 

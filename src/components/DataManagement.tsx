@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMsal } from '@azure/msal-react';
 import { Search, Settings, Plus, Edit, Trash2, Copy, X, ChevronLeft, ChevronRight, Package, Layers, Tag, Menu, FileSpreadsheet, MoreVertical, Files, LogOut } from 'lucide-react';
 import { Product, TestData, Module, Category } from '../types';
 import { useDatabase } from '../hooks/useDatabase';
@@ -52,16 +53,29 @@ export const DataManagement: React.FC<Props> = ({
   onGetModulesByProduct,
 }) => {
   const { role, logout, email } = useAuth();
+  const { instance } = useMsal();
   const navigate = useNavigate();
 
   const handleLogout = React.useCallback(() => {
     try {
       logout();
+      // Clear all app state
+      try {
+        localStorage.removeItem('appState');
+        sessionStorage.clear();
+      } catch (e) {}
     } finally {
-      // navigate to home so auth modal (on HomePage) appears
-      navigate('/');
+      // Clear MSAL cache
+      try {
+        const accounts = instance.getAllAccounts();
+        if (accounts.length > 0) {
+          instance.clearCache();
+        }
+      } catch (e) {}
+      // Navigate to login page immediately
+      navigate('/login', { replace: true });
     }
-  }, [logout, navigate]);
+  }, [logout, instance, navigate]);
   const [toast, setToast] = React.useState({ isVisible: false, message: '', type: 'success' as 'success' | 'error' | 'warning' });
   const [showTestDataModal, setShowTestDataModal] = React.useState(false);
   const [showExcelImport, setShowExcelImport] = React.useState(false);
@@ -82,13 +96,6 @@ export const DataManagement: React.FC<Props> = ({
   // Load test data when filters change (with debounce to prevent infinite loading)
   React.useEffect(() => {
     const loadData = async () => {
-      console.log('Loading test data with filters:', {
-        product_id: selectedProduct.id,
-        module_id: selectedModule !== 'all' ? selectedModule : undefined,
-        category_id: selectedCategory !== 'all' ? selectedCategory : undefined,
-        search: searchQuery || undefined,
-      });
-      
       const filters = {
         product_id: selectedProduct.id,
         module_id: selectedModule !== 'all' ? selectedModule : undefined,
@@ -98,7 +105,6 @@ export const DataManagement: React.FC<Props> = ({
       
       try {
         await onLoadTestData(filters);
-        console.log('Test data loaded successfully');
       } catch (error) {
         console.error('Error loading test data:', error);
       } finally {
@@ -117,15 +123,12 @@ export const DataManagement: React.FC<Props> = ({
   const loadModulesForProduct = React.useCallback(async () => {
     if (selectedProduct) {
       try {
-        console.log('Loading modules for product in DataManagement:', selectedProduct.id);
         const productModules = await onGetModulesByProduct(selectedProduct.id);
         const activeProductModules = productModules.filter(m => m.is_active);
-        console.log('Loaded modules in DataManagement:', activeProductModules);
         setFilteredModules(activeProductModules);
         
         // Reset module filter if current selection is not available for this product
         if (selectedModule !== 'all' && !activeProductModules.find(m => m.id === selectedModule)) {
-          console.log('Resetting module filter - current selection not available');
           onModuleChange('all');
         }
       } catch (error) {
@@ -133,7 +136,6 @@ export const DataManagement: React.FC<Props> = ({
         setFilteredModules([]);
       }
     } else {
-      console.log('No product selected, clearing modules');
       setFilteredModules([]);
     }
   }, [selectedProduct?.id, onGetModulesByProduct, selectedModule, onModuleChange]);
@@ -293,9 +295,7 @@ export const DataManagement: React.FC<Props> = ({
       message: `Are you sure you want to delete "${itemName}"? This action cannot be undone.`,
       onConfirm: async () => {
         try {
-          console.log('Deleting test data:', id);
           await deleteTestData(id);
-          console.log('Test data delete request sent');
           setToast({ isVisible: true, message: `Test data "${itemName}" deleted successfully!`, type: 'success' });
 
           // Close confirm dialog
@@ -310,7 +310,6 @@ export const DataManagement: React.FC<Props> = ({
               search: searchQuery || undefined,
             };
             await onLoadTestData(filters);
-            console.log('Test data reloaded after deletion');
           } catch (reloadErr) {
             console.error('Error reloading test data after deletion:', reloadErr);
           }
@@ -334,7 +333,6 @@ export const DataManagement: React.FC<Props> = ({
 
   const handleSaveTestData = React.useCallback(async (data: any) => {
     try {
-      console.log('Saving test data:', data);
       if (editingTestData && editingTestData.id) {
         await updateTestData({ ...data, id: editingTestData.id });
         setToast({ isVisible: true, message: `Test data "${data.name}" updated successfully!`, type: 'success' });
@@ -343,7 +341,6 @@ export const DataManagement: React.FC<Props> = ({
         setToast({ isVisible: true, message: `Test data "${data.name}" created successfully!`, type: 'success' });
       }
       setShowTestDataModal(false);
-      console.log('Test data saved successfully');
       
       // Force reload test data with current filters after a short delay
       setTimeout(async () => {
@@ -355,7 +352,6 @@ export const DataManagement: React.FC<Props> = ({
             search: searchQuery || undefined,
           };
           await onLoadTestData(filters);
-          console.log('Test data manually refreshed after save');
         } catch (error) {
           console.error('Error manually refreshing test data:', error);
         }

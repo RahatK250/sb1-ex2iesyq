@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DataManagement } from '../components/DataManagement';
 import { Product, TestData, Module, Category } from '../types';
 
 interface Props {
-  selectedProduct: Product | null;
   products: Product[];
   modules: Module[];
   categories: Category[];
@@ -40,7 +39,6 @@ const findProductBySlug = (products: Product[], slug: string): Product | undefin
   return products.find(product => createProductSlug(product.name) === slug);
 };
 export const DataPage: React.FC<Props> = ({
-  selectedProduct,
   products,
   modules,
   categories,
@@ -58,32 +56,26 @@ export const DataPage: React.FC<Props> = ({
   const navigate = useNavigate();
   const { productName } = useParams<{ productName: string }>();
 
-  // If no product is selected or URL product doesn't match, find and select the correct product
-  useEffect(() => {
-    if (productName && (!selectedProduct || createProductSlug(selectedProduct.name) !== productName)) {
-      const product = findProductBySlug(products, productName);
-      if (product) {
-        onProductChange(product);
-      } else {
-        // Product not found, redirect to home
-        navigate('/', { replace: true });
-      }
+  // Use product lookup from URL as source of truth - don't call onProductChange, URL is the authority
+  const resolvedProduct = React.useMemo(() => {
+    if (productName && products && products.length > 0) {
+      return findProductBySlug(products, productName);
     }
-  }, [productName, selectedProduct, products, onProductChange, navigate]);
+    return null;
+  }, [productName, products]);
 
   // Handle product change from within the component
-  const handleProductChange = (product: Product) => {
-    onProductChange(product);
+  const handleProductChange = React.useCallback((product: Product) => {
     const productSlug = createProductSlug(product.name);
     navigate(`/data/${productSlug}`, { replace: true });
-  };
+  }, [navigate]);
 
-  const handleNavigateToSettings = () => {
+  const handleNavigateToSettings = React.useCallback(() => {
     navigate('/settings');
-  };
+  }, [navigate]);
 
-  // Don't render if no product is selected
-  if (!selectedProduct) {
+  // Don't render if no product is resolved
+  if (!resolvedProduct) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -100,7 +92,7 @@ export const DataPage: React.FC<Props> = ({
 
   return (
     <DataManagement
-      selectedProduct={selectedProduct}
+      selectedProduct={resolvedProduct}
       products={products}
       modules={modules}
       categories={categories}

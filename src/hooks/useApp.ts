@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AppState, Product } from '../types';
 
 export const useApp = () => {
-  const [state, setState] = useState<AppState>({
-    selectedProduct: null,
-    theme: 'light',
+  const [state, setState] = useState<AppState>(() => {
+    // Initialize from localStorage
+    try {
+      const saved = localStorage.getItem('appState');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          selectedProduct: parsed.selectedProduct || null,
+          theme: (parsed.theme as 'light' | 'dark') || 'light',
+        };
+      }
+    } catch (e) {
+      console.error('Error loading app state from localStorage:', e);
+    }
+    return { selectedProduct: null, theme: 'light' };
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,27 +38,39 @@ export const useApp = () => {
     localStorage.setItem('theme', state.theme);
   }, [state.theme]);
 
-  const selectProduct = (product: Product) => {
+  // Persist app state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('appState', JSON.stringify({
+        selectedProduct: state.selectedProduct,
+        theme: state.theme,
+      }));
+    } catch (e) {
+      console.error('Error saving app state to localStorage:', e);
+    }
+  }, [state.selectedProduct, state.theme]);
+
+  const selectProduct = useCallback((product: Product) => {
     setState(prev => ({ 
       ...prev, 
       selectedProduct: product, 
       currentPage: 'data' 
     }));
-  };
+  }, []);
 
-  const changeProduct = (product: Product) => {
+  const changeProduct = useCallback((product: Product) => {
     setState(prev => ({ 
       ...prev, 
       selectedProduct: product
     }));
-  };
+  }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setState(prev => ({ 
       ...prev, 
       theme: prev.theme === 'light' ? 'dark' : 'light' 
     }));
-  };
+  }, []);
 
 
   return {
