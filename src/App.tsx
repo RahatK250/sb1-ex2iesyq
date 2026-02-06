@@ -4,6 +4,8 @@ import { useApp } from './hooks/useApp';
 import { HomePage } from './pages/HomePage';
 import { DataPage } from './pages/DataPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { FeatureSelectionPage } from './pages/FeatureSelectionPage';
+import { TestCoveragePage } from './pages/TestCoveragePage';
 import { useDatabase } from './hooks/useDatabase';
 
 function AppContent() {
@@ -43,6 +45,16 @@ function AppContent() {
         }
       />
       <Route
+        path="/features/:productName"
+        element={
+          <FeatureSelectionPage
+            selectedProduct={state.selectedProduct}
+            products={products}
+            onSelectProduct={selectProduct}
+          />
+        }
+      />
+      <Route
         path="/data/:productName"
         element={
           <DataPage
@@ -60,6 +72,15 @@ function AppContent() {
             onProductChange={changeProduct}
             onLoadTestData={memoizedLoadTestData}
             onGetModulesByProduct={memoizedGetModulesByProduct}
+          />
+        }
+      />
+      <Route
+        path="/test-coverage/:productName"
+        element={
+          <TestCoveragePage
+            selectedProduct={state.selectedProduct}
+            products={products}
           />
         }
       />

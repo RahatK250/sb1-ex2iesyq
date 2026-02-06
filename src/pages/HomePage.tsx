@@ -23,7 +23,8 @@ export const HomePage: React.FC<Props> = ({ products, onSelectProduct }) => {
   const handleSelectProduct = (product: Product) => {
     onSelectProduct(product);
     const productSlug = createProductSlug(product.name);
-    navigate(`/data/${productSlug}`);
+    // Navigate to feature selection page instead of directly to data
+    navigate(`/features/${productSlug}`);
   };
 
   return (

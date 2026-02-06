@@ -82,6 +82,13 @@ export const DataPage: React.FC<Props> = ({
     navigate('/settings');
   };
 
+  const handleNavigateBackToFeatures = () => {
+    if (selectedProduct) {
+      const productSlug = createProductSlug(selectedProduct.name);
+      navigate(`/features/${productSlug}`);
+    }
+  };
+
   // Don't render if no product is selected
   if (!selectedProduct) {
     return (
@@ -113,6 +120,7 @@ export const DataPage: React.FC<Props> = ({
       onCategoryChange={onCategoryChange}
       onProductChange={handleProductChange}
       onNavigateToSettings={handleNavigateToSettings}
+      onNavigateBackToFeatures={handleNavigateBackToFeatures}
       onLoadTestData={onLoadTestData}
       onGetModulesByProduct={onGetModulesByProduct}
     />
