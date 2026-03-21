@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
-  Product, 
-  Module, 
-  Category, 
+import {
+  Product,
+  Module,
+  Category,
   TestData,
+  SubModule,
+  ModuleSubModule,
   CreateTestDataInput,
   UpdateTestDataInput,
   CreateProductInput,
@@ -12,7 +14,10 @@ import {
   CreateModuleInput,
   UpdateModuleInput,
   CreateCategoryInput,
-  UpdateCategoryInput
+  UpdateCategoryInput,
+  CreateSubModuleInput,
+  UpdateSubModuleInput,
+  CreateModuleSubModuleInput,
 } from '../types';
 import * as db from '../services/database';
 
@@ -24,6 +29,9 @@ export const useDatabase = () => {
   const [allModules, setAllModules] = useState<Module[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [productModules, setProductModules] = useState<any[]>([]);
+  const [subModules, setSubModules] = useState<SubModule[]>([]);
+  const [allSubModules, setAllSubModules] = useState<SubModule[]>([]);
+  const [moduleSubModules, setModuleSubModules] = useState<ModuleSubModule[]>([]);
   const [testData, setTestData] = useState<TestData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +128,33 @@ export const useDatabase = () => {
       )
       .subscribe();
 
+    // Sub Modules subscription
+    const subModulesSubscription = supabase
+      .channel('sub-modules-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'sub_modules' },
+        async () => {
+          try {
+            const [active, all] = await Promise.all([db.getSubModules(), db.getAllSubModules()]);
+            setSubModules(active);
+            setAllSubModules(all);
+          } catch (error) { console.error('Error reloading sub_modules:', error); }
+        }
+      ).subscribe();
+
+    // Module Sub Modules subscription
+    const moduleSubModulesSubscription = supabase
+      .channel('module-sub-modules-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'module_sub_modules' },
+        async () => {
+          try {
+            const data = await db.getAllModuleSubModules();
+            setModuleSubModules(data);
+          } catch (error) { console.error('Error reloading module_sub_modules:', error); }
+        }
+      ).subscribe();
+
     // Test Data subscription
     const testDataSubscription = supabase
       .channel('test-data-changes')
@@ -168,6 +203,8 @@ export const useDatabase = () => {
       modulesSubscription.unsubscribe();
       categoriesSubscription.unsubscribe();
       productModulesSubscription.unsubscribe();
+      subModulesSubscription.unsubscribe();
+      moduleSubModulesSubscription.unsubscribe();
       testDataSubscription.unsubscribe();
     };
   }, []);
@@ -176,16 +213,19 @@ export const useDatabase = () => {
   const loadData = async () => {
     setError(null);
     try {
-      const [productsData, modulesData, categoriesData, allProductsData, allModulesData, allCategoriesData, productModulesData] = await Promise.all([
+      const [productsData, modulesData, categoriesData, allProductsData, allModulesData, allCategoriesData, productModulesData, subModulesData, allSubModulesData, moduleSubModulesData] = await Promise.all([
         db.getProducts(),
         db.getModules(),
         db.getCategories(),
         db.getAllProducts(),
         db.getAllModules(),
         db.getAllCategories(),
-        db.getAllProductModules()
+        db.getAllProductModules(),
+        db.getSubModules(),
+        db.getAllSubModules(),
+        db.getAllModuleSubModules(),
       ]);
-      
+
       setProducts(productsData);
       setModules(modulesData);
       setCategories(categoriesData);
@@ -193,6 +233,9 @@ export const useDatabase = () => {
       setAllModules(allModulesData);
       setAllCategories(allCategoriesData);
       setProductModules(productModulesData);
+      setSubModules(subModulesData);
+      setAllSubModules(allSubModulesData);
+      setModuleSubModules(moduleSubModulesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -485,6 +528,74 @@ export const useDatabase = () => {
     }
   };
 
+  // Sub Modules CRUD
+  const createSubModule = async (input: CreateSubModuleInput) => {
+    try {
+      const item = await db.createSubModule(input);
+      setAllSubModules(prev => [...prev, item]);
+      if (item.is_active) setSubModules(prev => [...prev, item]);
+      return item;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create sub module');
+      throw err;
+    }
+  };
+
+  const updateSubModule = async (input: UpdateSubModuleInput) => {
+    try {
+      const item = await db.updateSubModule(input);
+      setAllSubModules(prev => prev.map(s => s.id === item.id ? item : s));
+      setSubModules(prev => item.is_active
+        ? prev.map(s => s.id === item.id ? item : s).concat(prev.find(s => s.id === item.id) ? [] : [item])
+        : prev.filter(s => s.id !== item.id)
+      );
+      return item;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update sub module');
+      throw err;
+    }
+  };
+
+  const deleteSubModule = async (id: string) => {
+    try {
+      await db.deleteSubModule(id);
+      setAllSubModules(prev => prev.map(s => s.id === id ? { ...s, is_active: false } : s));
+      setSubModules(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete sub module');
+      throw err;
+    }
+  };
+
+  // Module Sub Modules CRUD
+  const createModuleSubModule = async (moduleId: string, subModuleId: string) => {
+    try {
+      const item = await db.createModuleSubModule({ module_id: moduleId, sub_module_id: subModuleId });
+      setModuleSubModules(prev => {
+        const exists = prev.find(msm => msm.id === item.id);
+        return exists ? prev.map(msm => msm.id === item.id ? item : msm) : [...prev, item];
+      });
+      return item;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to link sub module');
+      throw err;
+    }
+  };
+
+  const deleteModuleSubModule = async (moduleId: string, subModuleId: string) => {
+    try {
+      await db.deleteModuleSubModule(moduleId, subModuleId);
+      setModuleSubModules(prev => prev.map(msm =>
+        msm.module_id === moduleId && msm.sub_module_id === subModuleId
+          ? { ...msm, is_active: false }
+          : msm
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to unlink sub module');
+      throw err;
+    }
+  };
+
   // Test Data CRUD
   const createTestData = async (input: CreateTestDataInput) => {
     try {
@@ -659,6 +770,9 @@ export const useDatabase = () => {
     allModules,
     allCategories,
     productModules,
+    subModules,
+    allSubModules,
+    moduleSubModules,
     testData,
     loading,
     error,
@@ -701,13 +815,25 @@ export const useDatabase = () => {
     // Product Modules
     createProductModule,
     deleteProductModule,
-    
+
+    // Sub Modules
+    createSubModule,
+    updateSubModule,
+    deleteSubModule,
+
+    // Module Sub Modules
+    createModuleSubModule,
+    deleteModuleSubModule,
+
     // Test Data
     createTestData,
     updateTestData,
     deleteTestData,
-    
+
     // Product Ordering
     updateProductOrders,
+
+    // Coverage item checks
+    checkSubModuleInUse: db.checkSubModuleInUse,
   };
 };

@@ -23,6 +23,7 @@ interface Props {
   onCategoryChange: (categoryId: string | 'all') => void;
   onProductChange: (product: Product) => void;
   onNavigateToSettings: () => void;
+  onNavigateBackToFeatures: () => void;
   onLoadTestData: (filters?: {
     product_id?: string;
     module_id?: string;
@@ -46,6 +47,7 @@ export const DataManagement: React.FC<Props> = ({
   onCategoryChange,
   onProductChange,
   onNavigateToSettings,
+  onNavigateBackToFeatures,
   onLoadTestData,
   onGetModulesByProduct,
 }) => {
@@ -447,7 +449,14 @@ export const DataManagement: React.FC<Props> = ({
             </div>
 
             {/* Settings Button */}
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700 space-y-3">
+              <button
+                onClick={onNavigateBackToFeatures}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-700 dark:to-blue-600 text-blue-700 dark:text-blue-300 rounded-2xl hover:from-blue-200 hover:to-blue-300 dark:hover:from-blue-600 dark:hover:to-blue-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-200 dark:border-blue-600"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span className="font-medium">Back to Features</span>
+              </button>
               <button
                 onClick={onNavigateToSettings}
                 className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"
@@ -538,7 +547,14 @@ export const DataManagement: React.FC<Props> = ({
               />
             </div>
 
-            <div className="mt-auto pt-8">
+            <div className="mt-auto pt-8 space-y-3">
+            <button
+              onClick={onNavigateBackToFeatures}
+              className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-700 dark:to-blue-600 text-blue-700 dark:text-blue-300 rounded-2xl hover:from-blue-200 hover:to-blue-300 dark:hover:from-blue-600 dark:hover:to-blue-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-200 dark:border-blue-600"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="font-medium">Back to Features</span>
+            </button>
             <button
               onClick={onNavigateToSettings}
               className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-2xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border border-gray-200 dark:border-gray-600"

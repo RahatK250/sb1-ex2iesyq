@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVertical, GitBranch } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
-import { Product, Module, Category } from '../types';
+import { Product, Module, Category, SubModule } from '../types';
 import { useDatabase } from '../hooks/useDatabase';
 import { ProductModal } from '../components/modals/ProductModal';
 import { ModuleModal } from '../components/modals/ModuleModal';
@@ -10,8 +10,9 @@ import { ProductModuleModal } from '../components/modals/ProductModuleModal';
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CustomDropdown } from '../components/CustomDropdown';
+import { MultiSelectDropdown } from '../components/MultiSelectDropdown';
 
-type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules';
+type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules' | 'sub-modules';
 
 interface SettingsProps {
   products: Product[];
@@ -41,6 +42,14 @@ export function SettingsPage({
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isProductModuleModalOpen, setIsProductModuleModalOpen] = useState(false);
+  const [isSubModuleModalOpen, setIsSubModuleModalOpen] = useState(false);
+  const [editingSubModule, setEditingSubModule] = useState<SubModule | null>(null);
+  const [subModuleForm, setSubModuleForm] = useState({ name: '' });
+  // Per-module multi-select link state: { [moduleId]: string[] of selected sub module ids }
+  const [subModuleLinkSelections, setSubModuleLinkSelections] = useState<Record<string, string[]>>({});
+  const [subModuleLinkLoadingModuleId, setSubModuleLinkLoadingModuleId] = useState<string | null>(null);
+  const [subModuleModuleSearch, setSubModuleModuleSearch] = useState('');
+  const [subModuleProductFilter, setSubModuleProductFilter] = useState<string>('all');
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' as 'success' | 'error' | 'warning' });
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
@@ -55,6 +64,9 @@ export function SettingsPage({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [optimisticDesired, setOptimisticDesired] = useState<Record<string, boolean>>({});
   const [optimisticLoading, setOptimisticLoading] = useState<Record<string, boolean>>({});
+  const [inlineModuleProductId, setInlineModuleProductId] = useState<string | null>(null);
+  const [inlineModuleName, setInlineModuleName] = useState('');
+  const [inlineModuleLoading, setInlineModuleLoading] = useState(false);
 
   // Update activeTab when initialTab changes
   React.useEffect(() => {
@@ -92,10 +104,10 @@ export function SettingsPage({
       onTabChange(tab);
     }
   };
-  const { 
-    createProduct, 
-    updateProduct, 
-    deleteProduct, 
+  const {
+    createProduct,
+    updateProduct,
+    deleteProduct,
     products: dbProducts,
     allProducts,
     modules: dbModules,
@@ -103,15 +115,24 @@ export function SettingsPage({
     categories: dbCategories,
     allCategories,
     productModules: dbProductModules,
-    createModule, 
-    updateModule, 
-    deleteModule, 
-    createCategory, 
-    updateCategory, 
+    subModules: dbSubModules,
+    allSubModules,
+    moduleSubModules: dbModuleSubModules,
+    createModule,
+    updateModule,
+    deleteModule,
+    createCategory,
+    updateCategory,
     deleteCategory,
     createProductModule,
     deleteProductModule,
+    createSubModule,
+    updateSubModule,
+    deleteSubModule,
+    createModuleSubModule,
+    deleteModuleSubModule,
     updateProductOrders,
+    checkSubModuleInUse,
     setProducts,
     setModules,
     setAllProducts,
@@ -150,6 +171,8 @@ export function SettingsPage({
   const activeModules = (dbModules && dbModules.length > 0) ? dbModules : modules;
   const activeCategories = (dbCategories && dbCategories.length > 0) ? dbCategories : categories;
   const activeProductModules = (dbProductModules && dbProductModules.length > 0) ? dbProductModules : productModules;
+  const activeSubModules = dbSubModules || [];
+  const activeModuleSubModules = dbModuleSubModules || [];
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
     setToast({ isVisible: true, message, type });
@@ -369,6 +392,111 @@ export function SettingsPage({
       case 'product-modules':
         setIsProductModuleModalOpen(true);
         break;
+      case 'sub-modules':
+        setEditingSubModule(null);
+        setSubModuleForm({ name: '' });
+        setIsSubModuleModalOpen(true);
+        break;
+    }
+  };
+
+  const handleSubModuleSave = async () => {
+    if (!subModuleForm.name.trim()) return;
+    try {
+      if (editingSubModule) {
+        await updateSubModule({ id: editingSubModule.id, name: subModuleForm.name.trim() });
+        showToast(`Sub Module "${subModuleForm.name}" updated`, 'success');
+      } else {
+        await createSubModule({ name: subModuleForm.name.trim() });
+        showToast(`Sub Module "${subModuleForm.name}" created`, 'success');
+      }
+      setIsSubModuleModalOpen(false);
+      setEditingSubModule(null);
+    } catch {
+      showToast('Failed to save sub module', 'error');
+    }
+  };
+
+  const handleDeleteSubModule = async (sm: SubModule) => {
+    try {
+      const count = await checkSubModuleInUse(sm.id);
+      if (count > 0) {
+        showToast(`Cannot delete "${sm.name}" — it is used in ${count} coverage item(s). Remove from test coverage first.`, 'error');
+        return;
+      }
+    } catch {
+      showToast('Failed to check sub module usage', 'error');
+      return;
+    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Sub Module',
+      message: `Delete "${sm.name}"? This will also remove all its module links.`,
+      onConfirm: async () => {
+        try {
+          await deleteSubModule(sm.id);
+          showToast(`"${sm.name}" deleted`, 'success');
+        } catch { showToast('Failed to delete sub module', 'error'); }
+      },
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+    });
+  };
+
+  const handleLinkSubModule = async (moduleId: string) => {
+    const selectedIds = subModuleLinkSelections[moduleId] ?? [];
+    if (!moduleId || selectedIds.length === 0) return;
+    setSubModuleLinkLoadingModuleId(moduleId);
+    try {
+      await Promise.all(selectedIds.map(smId => createModuleSubModule(moduleId, smId)));
+      const mod = activeModules.find(m => m.id === moduleId);
+      showToast(
+        selectedIds.length === 1
+          ? `Linked "${(activeSubModules ?? []).find(s => s.id === selectedIds[0])?.name}" to "${mod?.name}"`
+          : `Linked ${selectedIds.length} sub modules to "${mod?.name}"`,
+        'success'
+      );
+      setSubModuleLinkSelections(prev => ({ ...prev, [moduleId]: [] }));
+    } catch { showToast('Failed to link sub module', 'error'); }
+    finally { setSubModuleLinkLoadingModuleId(null); }
+  };
+
+  const handleUnlinkSubModule = async (moduleId: string, subModuleId: string) => {
+    const mod = activeModules.find(m => m.id === moduleId);
+    const sm = activeSubModules.find(s => s.id === subModuleId);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Remove Link',
+      message: `Remove "${sm?.name}" from "${mod?.name}"?`,
+      onConfirm: async () => {
+        try {
+          await deleteModuleSubModule(moduleId, subModuleId);
+          showToast('Link removed', 'success');
+        } catch { showToast('Failed to remove link', 'error'); }
+      },
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      type: 'danger',
+    });
+  };
+
+  const handleInlineAddModule = async (productId: string) => {
+    const name = inlineModuleName.trim();
+    if (!name) return;
+    setInlineModuleLoading(true);
+    try {
+      // 1. Create the module
+      const newModule = await createModule({ name });
+      // 2. Link it to the product
+      await createProductModule(productId, newModule.id);
+      showToast(`Module "${name}" created and assigned`, 'success');
+      setInlineModuleProductId(null);
+      setInlineModuleName('');
+    } catch {
+      showToast('Failed to create module', 'error');
+    } finally {
+      setInlineModuleLoading(false);
     }
   };
 
@@ -681,6 +809,7 @@ export function SettingsPage({
     { id: 'products' as const, label: 'Products', icon: Package, data: activeProducts },
     { id: 'modules' as const, label: 'Modules', icon: Layers, data: activeModules },
     { id: 'product-modules' as const, label: 'Product Modules', icon: Link, data: activeProductModules },
+    { id: 'sub-modules' as const, label: 'Sub Modules', icon: GitBranch, data: activeSubModules },
   ];
 
   const activeTabData = tabs.find(tab => tab.id === activeTab);
@@ -813,7 +942,7 @@ export function SettingsPage({
 
           {/* Tab Content */}
           <div className={`p-4 lg:p-6 transition-opacity duration-200 ${isTabChanging ? 'opacity-50' : 'opacity-100'}`}>
-            {/* Product Modules Tab - Special Layout */}
+            {/* Product Modules Tab */}
             {activeTab === 'product-modules' && (
               <>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -899,6 +1028,41 @@ export function SettingsPage({
                           </button>
                         </div>
                       )}
+                      {/* Inline quick-add module */}
+                      {inlineModuleProductId === product.id ? (
+                        <div className="mt-4 flex gap-2 items-center">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="New module name…"
+                            value={inlineModuleName}
+                            onChange={e => setInlineModuleName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleInlineAddModule(product.id);
+                              if (e.key === 'Escape') { setInlineModuleProductId(null); setInlineModuleName(''); }
+                            }}
+                            className="select-enhanced flex-1 px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
+                          />
+                          <button
+                            onClick={() => handleInlineAddModule(product.id)}
+                            disabled={inlineModuleLoading || !inlineModuleName.trim()}
+                            className="px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 transition-colors shadow-sm flex-shrink-0">
+                            {inlineModuleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            Add
+                          </button>
+                          <button onClick={() => { setInlineModuleProductId(null); setInlineModuleName(''); }}
+                            className="p-2.5 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setInlineModuleProductId(product.id); setInlineModuleName(''); }}
+                          className="mt-4 flex items-center gap-1.5 text-sm text-orange-500 hover:text-orange-600 font-medium transition-colors">
+                          <Plus className="w-4 h-4" />
+                          Quick Add Module
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -914,8 +1078,231 @@ export function SettingsPage({
               </>
             )}
 
+            {/* Sub Modules Tab */}
+            {activeTab === 'sub-modules' && (
+              <>
+                {/* Sub Module inline modal */}
+                {isSubModuleModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSubModuleModalOpen(false)} />
+                    <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 p-6">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+                        {editingSubModule ? 'Edit Sub Module' : 'Add Sub Module'}
+                      </h3>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Name *</label>
+                      <input
+                        type="text" autoFocus
+                        value={subModuleForm.name}
+                        onChange={e => setSubModuleForm({ name: e.target.value })}
+                        onKeyDown={e => e.key === 'Enter' && handleSubModuleSave()}
+                        placeholder="e.g. Detail View, Create Modal…"
+                        className="input-enhanced w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white mb-5"
+                      />
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => setIsSubModuleModalOpen(false)}
+                          className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                          Cancel
+                        </button>
+                        <button onClick={handleSubModuleSave} disabled={!subModuleForm.name.trim()}
+                          className="px-5 py-2 rounded-lg text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 transition-colors">
+                          {editingSubModule ? 'Save' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">Sub Module Management</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create sub modules and link them to modules for detailed coverage tracking</p>
+                  </div>
+                  <button onClick={handleAddNew}
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 lg:py-3 rounded-lg transition-colors flex items-center gap-2 w-full sm:w-auto justify-center">
+                    <Plus className="w-4 h-4" />
+                    Add Sub Module
+                  </button>
+                </div>
+
+                {/* Sub Modules library */}
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Sub Module Library</h3>
+                  {(allSubModules && allSubModules.length > 0) ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {(allSubModules || []).filter((sm: SubModule) => sm.is_active !== false).map((sm: SubModule) => (
+                        <div key={sm.id} className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{sm.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={() => { setEditingSubModule(sm); setSubModuleForm({ name: sm.name }); setIsSubModuleModalOpen(true); }}
+                              className="p-1.5 rounded text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteSubModule(sm)}
+                              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <GitBranch className="w-10 h-10 text-gray-300 dark:text-gray-500 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No sub modules yet. Click "Add Sub Module" to create one.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Module Assignments */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Module Assignments</h3>
+
+                  {/* Filter bar: Product filter + Search */}
+                  <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                    {/* Product filter */}
+                    <CustomDropdown
+                      options={activeProducts.filter((p: any) => p.is_active !== false).map((p: any) => ({ id: p.id, name: p.name }))}
+                      selectedValue={subModuleProductFilter}
+                      onValueChange={(v) => setSubModuleProductFilter(v)}
+                      allText="All Products"
+                      placeholder="Select product"
+                      hasAllOption={true}
+                      className="sm:w-52"
+                    />
+
+                    {/* Module search */}
+                    <div className="relative flex-1">
+                      <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search modules…"
+                        value={subModuleModuleSearch}
+                        onChange={e => setSubModuleModuleSearch(e.target.value)}
+                        className="select-enhanced w-full pl-10 pr-9 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
+                      />
+                      {subModuleModuleSearch && (
+                        <button onClick={() => setSubModuleModuleSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Filtered module list */}
+                  {(() => {
+                    // Get module IDs visible for selected product
+                    const productFilteredModuleIds = subModuleProductFilter === 'all'
+                      ? null
+                      : activeProductModules
+                          .filter((pm: any) => pm.product_id === subModuleProductFilter && pm.is_active !== false)
+                          .map((pm: any) => pm.module_id);
+
+                    const visibleModules = activeModules.filter((m: Module) => {
+                      if (m.is_active === false) return false;
+                      if (productFilteredModuleIds && !productFilteredModuleIds.includes(m.id)) return false;
+                      if (subModuleModuleSearch.trim()) {
+                        return m.name.toLowerCase().includes(subModuleModuleSearch.toLowerCase());
+                      }
+                      return true;
+                    });
+
+                    if (visibleModules.length === 0) {
+                      return (
+                        <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {subModuleModuleSearch || subModuleProductFilter !== 'all'
+                              ? 'No modules match the current filter.'
+                              : 'No active modules. Create modules first.'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {visibleModules.map((mod: Module) => {
+                          const linkedSubModuleIds = activeModuleSubModules
+                            .filter((msm: any) => msm.module_id === mod.id && msm.is_active !== false)
+                            .map((msm: any) => msm.sub_module_id);
+                          const linkedSubModules = (allSubModules || []).filter((sm: SubModule) => linkedSubModuleIds.includes(sm.id));
+                          // 1:1 rule — exclude sub modules already linked to ANY module
+                          const globallyLinkedIds = new Set(
+                            activeModuleSubModules
+                              .filter((msm: any) => msm.is_active !== false)
+                              .map((msm: any) => msm.sub_module_id)
+                          );
+                          const unlinkedSubModules = (allSubModules || []).filter((sm: SubModule) => sm.is_active !== false && !globallyLinkedIds.has(sm.id));
+
+                          return (
+                            <div key={mod.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Layers className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                <span className="font-semibold text-gray-900 dark:text-white text-sm">{mod.name}</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">{linkedSubModules.length} linked</span>
+                              </div>
+
+                              {/* Linked sub modules */}
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {linkedSubModules.map((sm: SubModule) => (
+                                  <span key={sm.id} className="inline-flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full px-3 py-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    <GitBranch className="w-3 h-3 text-gray-400" />
+                                    {sm.name}
+                                    <button onClick={() => handleUnlinkSubModule(mod.id, sm.id)}
+                                      className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors">
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </span>
+                                ))}
+                                {linkedSubModules.length === 0 && (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500 italic">No sub modules linked</span>
+                                )}
+                              </div>
+
+                              {/* Link sub module (multi-select) */}
+                              {unlinkedSubModules.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Link sub module</p>
+                                  <div className="flex gap-2">
+                                    <div className="flex-1">
+                                      <MultiSelectDropdown
+                                        options={unlinkedSubModules.map((sm: SubModule) => ({ id: sm.id, name: sm.name }))}
+                                        selectedValues={subModuleLinkSelections[mod.id] ?? []}
+                                        onValuesChange={(vals) => setSubModuleLinkSelections(prev => ({ ...prev, [mod.id]: vals }))}
+                                        placeholder="— Select sub modules —"
+                                        className="w-full"
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => handleLinkSubModule(mod.id)}
+                                      disabled={subModuleLinkLoadingModuleId === mod.id || (subModuleLinkSelections[mod.id] ?? []).length === 0}
+                                      className="px-5 py-3 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-40 flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm"
+                                    >
+                                      {subModuleLinkLoadingModuleId === mod.id
+                                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Linking…</>
+                                        : <><Link className="w-4 h-4" /> Link</>}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+
             {/* Other Tabs - Regular Layout */}
-            {activeTab !== 'product-modules' && (
+            {activeTab !== 'product-modules' && activeTab !== 'sub-modules' && (
               <>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                   <div>
@@ -1146,7 +1533,7 @@ export function SettingsPage({
                   </div>
                 )}
 
-                {displayedGridItems.length === 0 && (
+                {displayedGridItems.length === 0 && activeTabData && (
                   <div className="text-center py-8 lg:py-12">
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 lg:p-8">
                       <div className="text-gray-500 dark:text-gray-400 mb-4">
