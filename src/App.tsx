@@ -6,6 +6,7 @@ import { DataPage } from './pages/DataPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { FeatureSelectionPage } from './pages/FeatureSelectionPage';
 import { TestCoveragePage } from './pages/TestCoveragePage';
+import { CoverageOverviewPage } from './pages/CoverageOverviewPage';
 import { useDatabase } from './hooks/useDatabase';
 
 function AppContent() {
@@ -23,7 +24,7 @@ function AppContent() {
     toggleTheme,
   } = useApp();
 
-  const { products, modules, categories, allProducts, allModules, allCategories, testData, loading, loadTestData, productModules, getModulesByProduct } = useDatabase();
+  const { products, modules, categories, allProducts, allModules, allCategories, testData, loading, loadTestData, productModules, moduleSubModules, subModules, allSubModules, getModulesByProduct } = useDatabase();
 
   // Memoize the loadTestData function to prevent unnecessary re-renders
   const memoizedLoadTestData = React.useCallback(loadTestData, []);
@@ -80,7 +81,12 @@ function AppContent() {
         element={
           <TestCoveragePage
             selectedProduct={state.selectedProduct}
-            products={products}
+            products={allProducts}
+            modules={allModules}
+            productModules={productModules}
+            subModules={subModules}
+            allSubModules={allSubModules}
+            moduleSubModules={moduleSubModules}
           />
         }
       />
@@ -105,6 +111,16 @@ function AppContent() {
             categories={allCategories}
             productModules={productModules}
             onNavigateBack={handleNavigateBack}
+          />
+        }
+      />
+      <Route
+        path="/coverage-overview"
+        element={
+          <CoverageOverviewPage
+            products={allProducts}
+            productModules={productModules}
+            modules={allModules}
           />
         }
       />
