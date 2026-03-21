@@ -179,6 +179,32 @@ html, body {
   background-color: rgba(156, 163, 175, 0.8);
 }
 
+/* Dashboard panel scrollbar — thin, themed, blends with dark UI */
+.scroll-dashboard {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 114, 128, 0.35) transparent;
+}
+.scroll-dashboard::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-dashboard::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 2px;
+}
+.scroll-dashboard::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.35);
+  border-radius: 2px;
+}
+.scroll-dashboard::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.6);
+}
+.dark .scroll-dashboard::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.5);
+}
+.dark .scroll-dashboard::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.75);
+}
+
 /* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;
