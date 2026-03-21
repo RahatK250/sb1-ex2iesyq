@@ -14,6 +14,11 @@ interface Props {
   allText?: string;
   className?: string;
   disabled?: boolean;
+  /** Explicitly control whether the "All" option appears in the list.
+   *  true  = always show (filter use-case)
+   *  false = never show  (required select use-case)
+   *  undefined = auto: show when allText !== placeholder */
+  hasAllOption?: boolean;
   // Optional extra action shown inside the dropdown (e.g. "+ Add Module").
   // If `showWhenEmpty` is true, the action is only shown when `options.length === 0`.
   extraActionLabel?: string;
@@ -29,6 +34,7 @@ export const CustomDropdown: React.FC<Props> = ({
   allText = 'All',
   className = '',
   disabled = false,
+  hasAllOption,
   extraActionLabel,
   onExtraAction,
   showExtraWhenEmpty = false,
@@ -60,8 +66,8 @@ export const CustomDropdown: React.FC<Props> = ({
     return selectedOption?.name || placeholder;
   };
 
-  // Only show "All" option if allText is different from placeholder
-  const showAllOption = allText !== placeholder;
+  // Show "All" option: explicit prop overrides auto-detection (allText !== placeholder)
+  const showAllOption = hasAllOption !== undefined ? hasAllOption : allText !== placeholder;
   const allOptions = showAllOption ? [{ id: 'all', name: allText }, ...options] : options;
 
   return (

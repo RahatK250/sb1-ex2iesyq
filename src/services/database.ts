@@ -33,7 +33,7 @@ export const getProducts = async (): Promise<Product[]> => {
     .eq('is_active', true)
     .order('display_order', { ascending: true })
     .order('name', { ascending: true });
-
+  
   if (error) throw error;
   return data || [];
 };
@@ -44,7 +44,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     .insert(input)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -57,7 +57,7 @@ export const updateProduct = async (input: UpdateProductInput): Promise<Product>
     .eq('id', id)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -67,7 +67,7 @@ export const deleteProduct = async (id: string): Promise<void> => {
     .from('products')
     .update({ is_active: false })
     .eq('id', id);
-
+  
   if (error) throw error;
 };
 
@@ -78,7 +78,7 @@ export const getAllProducts = async (): Promise<Product[]> => {
     .select('*')
     .order('display_order', { ascending: true })
     .order('name', { ascending: true });
-
+  
   if (error) throw error;
   return data || [];
 };
@@ -89,7 +89,7 @@ export const updateProductOrder = async (productId: string, newOrder: number): P
     .from('products')
     .update({ display_order: newOrder })
     .eq('id', productId);
-
+  
   if (error) throw error;
 };
 
@@ -98,7 +98,7 @@ export const updateProductOrders = async (updates: { id: string; display_order: 
   const { error } = await supabase
     .from('products')
     .upsert(updates, { onConflict: 'id' });
-
+  
   if (error) throw error;
 };
 
@@ -114,14 +114,14 @@ export const getProductModules = async (productId?: string): Promise<ProductModu
   }
 
   const { data, error } = await query.order('created_at');
-
+  
   if (error) throw error;
   return data || [];
 };
 
 export const getModulesByProductId = async (productId: string): Promise<Module[]> => {
   console.log('Getting modules for product ID:', productId);
-
+  
   const { data, error } = await supabase
     .from('product_modules')
     .select(`
@@ -135,12 +135,12 @@ export const getModulesByProductId = async (productId: string): Promise<Module[]
     `)
     .eq('product_id', productId)
     .eq('is_active', true);
-
+  
   if (error) throw error;
-
+  
   const modules = data?.map(item => item.modules).filter(module => module && module.is_active) || [];
   console.log('Found modules for product:', productId, modules);
-
+  
   return modules;
 };
 
@@ -165,7 +165,7 @@ export const createProductModule = async (input: CreateProductModuleInput): Prom
       .eq('id', existingRecord.id)
       .select()
       .single();
-
+    
     if (error) throw error;
     return data;
   }
@@ -176,7 +176,7 @@ export const createProductModule = async (input: CreateProductModuleInput): Prom
     .insert(input)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -187,7 +187,7 @@ export const deleteProductModule = async (productId: string, moduleId: string): 
     .update({ is_active: false })
     .eq('product_id', productId)
     .eq('module_id', moduleId);
-
+  
   if (error) throw error;
 };
 
@@ -196,11 +196,10 @@ export const getAllProductModules = async (): Promise<ProductModule[]> => {
     .from('product_modules')
     .select('*')
     .order('created_at');
-
+  
   if (error) throw error;
   return data || [];
 };
-
 // Modules
 export const getModules = async (): Promise<Module[]> => {
   const { data, error } = await supabase
@@ -208,7 +207,7 @@ export const getModules = async (): Promise<Module[]> => {
     .select('*')
     .eq('is_active', true)
     .order('name');
-
+  
   if (error) throw error;
   return data || [];
 };
@@ -219,7 +218,7 @@ export const createModule = async (input: CreateModuleInput): Promise<Module> =>
     .insert(input)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -232,7 +231,7 @@ export const updateModule = async (input: UpdateModuleInput): Promise<Module> =>
     .eq('id', id)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -242,7 +241,7 @@ export const deleteModule = async (id: string): Promise<void> => {
     .from('modules')
     .update({ is_active: false })
     .eq('id', id);
-
+  
   if (error) throw error;
 };
 
@@ -252,11 +251,10 @@ export const getAllModules = async (): Promise<Module[]> => {
     .from('modules')
     .select('*')
     .order('name');
-
+  
   if (error) throw error;
   return data || [];
 };
-
 // Categories
 export const getCategories = async (): Promise<Category[]> => {
   const { data, error } = await supabase
@@ -264,7 +262,7 @@ export const getCategories = async (): Promise<Category[]> => {
     .select('*')
     .eq('is_active', true)
     .order('name');
-
+  
   if (error) throw error;
   return data || [];
 };
@@ -275,7 +273,7 @@ export const createCategory = async (input: CreateCategoryInput): Promise<Catego
     .insert(input)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -288,7 +286,7 @@ export const updateCategory = async (input: UpdateCategoryInput): Promise<Catego
     .eq('id', id)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -298,7 +296,7 @@ export const deleteCategory = async (id: string): Promise<void> => {
     .from('categories')
     .update({ is_active: false })
     .eq('id', id);
-
+  
   if (error) throw error;
 };
 
@@ -308,11 +306,10 @@ export const getAllCategories = async (): Promise<Category[]> => {
     .from('categories')
     .select('*')
     .order('name');
-
+  
   if (error) throw error;
   return data || [];
 };
-
 // Test Data
 export const getTestData = async (filters?: {
   product_id?: string;
@@ -327,23 +324,23 @@ export const getTestData = async (filters?: {
   if (filters?.product_id) {
     query = query.eq('product_id', filters.product_id);
   }
-
+  
   if (filters?.module_id) {
     query = query.eq('module_id', filters.module_id);
   }
-
+  
   if (filters?.category_id) {
     query = query.eq('category_id', filters.category_id);
   }
-
+  
   if (filters?.search) {
     query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,test_data.ilike.%${filters.search}%,expected.ilike.%${filters.search}%`);
   }
 
   query = query.order('created_at', { ascending: false });
-
+  
   const { data, error } = await query;
-
+  
   if (error) throw error;
   return data || [];
 };
@@ -354,7 +351,7 @@ export const createTestData = async (input: CreateTestDataInput): Promise<TestDa
     .insert(input)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
@@ -367,7 +364,7 @@ export const updateTestData = async (input: UpdateTestDataInput): Promise<TestDa
     .eq('id', id)
     .select()
     .single();
-
+  
   if (error) throw error;
   return data;
 };
