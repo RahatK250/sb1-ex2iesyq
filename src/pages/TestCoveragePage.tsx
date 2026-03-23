@@ -1136,9 +1136,10 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
                               onDragOver={e => handleModuleDragOver(e, module.id)}
                               onDrop={e => handleModuleDrop(e, module.id)}
                               onDragEnd={handleModuleDragEnd}
+                              style={isDragOver ? { boxShadow: 'inset 0 3px 0 0 #60a5fa' } : undefined}
                               className={`grid grid-cols-[minmax(120px,1fr)_minmax(220px,2fr)_minmax(220px,2fr)] transition-colors cursor-grab active:cursor-grabbing
                                 ${isDragOver
-                                  ? 'bg-blue-50/60 dark:bg-blue-900/20 border-l-2 border-l-blue-400'
+                                  ? 'bg-blue-50/40 dark:bg-blue-900/15'
                                   : 'hover:bg-gray-50/50 dark:hover:bg-gray-700/20'
                                 }`}
                             >
