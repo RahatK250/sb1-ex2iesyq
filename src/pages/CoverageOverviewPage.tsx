@@ -30,25 +30,50 @@ const fmtPct = (numerator: number, denominator: number): string => {
 
 // ─── Mini Donut ───────────────────────────────────────────────────────────────
 
+// Convert angle (0° = 12 o'clock, clockwise) to SVG cartesian coordinate
+const toXY = (cx: number, cy: number, r: number, angleDeg: number) => ({
+  x: cx + r * Math.cos(((angleDeg - 90) * Math.PI) / 180),
+  y: cy + r * Math.sin(((angleDeg - 90) * Math.PI) / 180),
+});
+
+// Draw an arc segment using a proper SVG path — no seam, no gap
+const arcSeg = (
+  cx: number, cy: number, r: number, sw: number,
+  startDeg: number, endDeg: number, color: string,
+) => {
+  const span = endDeg - startDeg;
+  if (span <= 0) return null;
+  // Full circle: use plain <circle> to avoid path degeneration
+  if (span >= 359.9999) {
+    return <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw} />;
+  }
+  const s = toXY(cx, cy, r, startDeg);
+  const e = toXY(cx, cy, r, endDeg);
+  const large = span > 180 ? 1 : 0;
+  return (
+    <path
+      d={`M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`}
+      fill="none" stroke={color} strokeWidth={sw} strokeLinecap="butt"
+    />
+  );
+};
+
 const MiniDonut: React.FC<{ full: number; partial: number; none: number; size?: number }> = ({
   full, partial, none, size = 100,
 }) => {
   const total = full + partial + none;
   const r = size * 0.375;
-  const C = 2 * Math.PI * r;
   const cx = size / 2, cy = size / 2;
-  const quart = C * 0.25;
   const sw = size * 0.18;
 
   const pF = total > 0 ? full / total : 0;
   const pP = total > 0 ? partial / total : 0;
   const pN = total > 0 ? none / total : 0;
 
-  const seg = (pct: number, color: string, offset: number) =>
-    pct > 0 ? (
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
-        strokeDasharray={`${pct * C} ${C}`} strokeDashoffset={-offset} />
-    ) : null;
+  const a0 = 0;
+  const a1 = pF * 360;
+  const a2 = a1 + pP * 360;
+  const a3 = a2 + pN * 360;
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
@@ -56,9 +81,9 @@ const MiniDonut: React.FC<{ full: number; partial: number; none: number; size?: 
         className="text-gray-200 dark:text-gray-700" />
       {total > 0 && (
         <>
-          {seg(pF, '#22c55e', quart)}
-          {seg(pP, '#eab308', quart + pF * C)}
-          {seg(pN, '#ef4444', quart + (pF + pP) * C)}
+          {arcSeg(cx, cy, r, sw, a0, a1, '#22c55e')}
+          {arcSeg(cx, cy, r, sw, a1, a2, '#eab308')}
+          {arcSeg(cx, cy, r, sw, a2, a3, '#ef4444')}
         </>
       )}
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"

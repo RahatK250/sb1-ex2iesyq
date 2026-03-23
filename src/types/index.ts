@@ -111,3 +111,73 @@ export interface CreateProductModuleInput {
 export interface UpdateProductModuleInput extends Partial<CreateProductModuleInput> {
   id: string;
 }
+
+export interface SubModule {
+  id: string;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
+  is_active?: boolean;
+}
+
+export interface CreateSubModuleInput {
+  name: string;
+}
+
+export interface UpdateSubModuleInput extends Partial<CreateSubModuleInput> {
+  id: string;
+  is_active?: boolean;
+}
+
+export interface ModuleSubModule {
+  id: string;
+  module_id: string;
+  sub_module_id: string;
+  created_at?: string;
+  updated_at?: string;
+  is_active?: boolean;
+}
+
+export interface CreateModuleSubModuleInput {
+  module_id: string;
+  sub_module_id: string;
+}
+
+export type CoverageType = 'manual' | 'automate';
+export type CoverageStatus = 'full' | 'partial' | 'no_coverage';
+
+export interface TestCoverageItem {
+  id: string;
+  product_id: string;
+  module_id: string;
+  sub_module_id?: string | null;
+  name: string;
+  description: string;
+  coverage_type: CoverageType;
+  coverage_status: CoverageStatus;
+  notes: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateTestCoverageItemInput {
+  product_id: string;
+  module_id: string;
+  sub_module_id?: string | null;
+  name: string;
+  description?: string;
+  coverage_type: CoverageType;
+  coverage_status: CoverageStatus;
+  notes?: string;
+}
+
+export interface UpdateTestCoverageItemInput {
+  id: string;
+  module_id?: string;
+  sub_module_id?: string | null;
+  name?: string;
+  description?: string;
+  coverage_type?: CoverageType;
+  coverage_status?: CoverageStatus;
+  notes?: string;
+}

@@ -1,10 +1,12 @@
 import { supabase } from '../lib/supabase';
-import { 
-  Product, 
-  Module, 
-  Category, 
+import {
+  Product,
+  Module,
+  Category,
   TestData,
   ProductModule,
+  SubModule,
+  ModuleSubModule,
   CreateTestDataInput,
   UpdateTestDataInput,
   CreateProductInput,
@@ -14,7 +16,13 @@ import {
   CreateCategoryInput,
   UpdateCategoryInput,
   CreateProductModuleInput,
-  UpdateProductModuleInput
+  UpdateProductModuleInput,
+  CreateSubModuleInput,
+  UpdateSubModuleInput,
+  CreateModuleSubModuleInput,
+  TestCoverageItem,
+  CreateTestCoverageItemInput,
+  UpdateTestCoverageItemInput,
 } from '../types';
 
 // Products
@@ -366,6 +374,171 @@ export const deleteTestData = async (id: string): Promise<void> => {
     .from('test_data')
     .delete()
     .eq('id', id);
-  
+
   if (error) throw error;
+};
+
+// Sub Modules
+export const getSubModules = async (): Promise<SubModule[]> => {
+  const { data, error } = await supabase
+    .from('sub_modules')
+    .select('*')
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw error;
+  return data || [];
+};
+
+export const getAllSubModules = async (): Promise<SubModule[]> => {
+  const { data, error } = await supabase
+    .from('sub_modules')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return data || [];
+};
+
+export const createSubModule = async (input: CreateSubModuleInput): Promise<SubModule> => {
+  const { data, error } = await supabase
+    .from('sub_modules')
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateSubModule = async (input: UpdateSubModuleInput): Promise<SubModule> => {
+  const { id, ...updateData } = input;
+  const { data, error } = await supabase
+    .from('sub_modules')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteSubModule = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('sub_modules')
+    .update({ is_active: false })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// Module Sub Modules
+export const getAllModuleSubModules = async (): Promise<ModuleSubModule[]> => {
+  const { data, error } = await supabase
+    .from('module_sub_modules')
+    .select('*')
+    .order('created_at');
+  if (error) throw error;
+  return data || [];
+};
+
+export const createModuleSubModule = async (input: CreateModuleSubModuleInput): Promise<ModuleSubModule> => {
+  // Check existing record
+  const { data: existing } = await supabase
+    .from('module_sub_modules')
+    .select('*')
+    .eq('module_id', input.module_id)
+    .eq('sub_module_id', input.sub_module_id)
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('module_sub_modules')
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await supabase
+    .from('module_sub_modules')
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteModuleSubModule = async (moduleId: string, subModuleId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('module_sub_modules')
+    .update({ is_active: false })
+    .eq('module_id', moduleId)
+    .eq('sub_module_id', subModuleId);
+  if (error) throw error;
+};
+
+// Test Coverage Items
+export const getCoverageItems = async (filters?: {
+  product_id?: string;
+  module_id?: string;
+  coverage_type?: string;
+}): Promise<TestCoverageItem[]> => {
+  let query = supabase.from('test_coverage_items').select('*');
+
+  if (filters?.product_id) query = query.eq('product_id', filters.product_id);
+  if (filters?.module_id) query = query.eq('module_id', filters.module_id);
+  if (filters?.coverage_type) query = query.eq('coverage_type', filters.coverage_type);
+
+  query = query.order('created_at', { ascending: false });
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+};
+
+export const createCoverageItem = async (input: CreateTestCoverageItemInput): Promise<TestCoverageItem> => {
+  const { data, error } = await supabase
+    .from('test_coverage_items')
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateCoverageItem = async (input: UpdateTestCoverageItemInput): Promise<TestCoverageItem> => {
+  const { id, ...updateData } = input;
+  const { data, error } = await supabase
+    .from('test_coverage_items')
+    .update({ ...updateData, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteCoverageItem = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('test_coverage_items')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const checkSubModuleInUse = async (subModuleId: string): Promise<number> => {
+  const { count, error } = await supabase
+    .from('test_coverage_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('sub_module_id', subModuleId);
+  if (error) throw error;
+  return count ?? 0;
+};
+
+// Get ALL coverage items across all products (for manager overview)
+export const getAllCoverageItems = async (): Promise<TestCoverageItem[]> => {
+  const { data, error } = await supabase
+    .from('test_coverage_items')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 };
