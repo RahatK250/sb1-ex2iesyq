@@ -43,6 +43,7 @@ const arcSeg = (
 ) => {
   const span = endDeg - startDeg;
   if (span <= 0) return null;
+  // Full circle: use plain <circle> to avoid path degeneration
   if (span >= 359.9999) {
     return <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw} />;
   }

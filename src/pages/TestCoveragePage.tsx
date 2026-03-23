@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Settings, CheckCircle2,
-  AlertCircle, XCircle, ChevronDown, X, Save, Loader2, GitBranch, LayoutGrid,
+  AlertCircle, XCircle, ChevronDown, X, Save, Loader2, GitBranch, LayoutGrid, GripVertical,
 } from 'lucide-react';
 import { Product, Module, ProductModule, SubModule, ModuleSubModule, CoverageType, CoverageStatus, TestCoverageItem, CreateTestCoverageItemInput, UpdateTestCoverageItemInput } from '../types';
 import { useCoverage } from '../hooks/useCoverage';
@@ -565,6 +565,11 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
   // key = `${moduleId}__${subModuleId ?? '__none__'}`, default expanded
   const [expandedSubModuleGroups, setExpandedSubModuleGroups] = useState<Record<string, boolean>>({});
 
+  // ── Drag-and-drop module order ──
+  const [moduleOrder, setModuleOrder] = useState<string[]>([]);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+
   const toggleSubModuleGroup = useCallback((moduleId: string, subModuleId: string | null) => {
     const key = `${moduleId}__${subModuleId ?? '__none__'}`;
     setExpandedSubModuleGroups(prev => ({ ...prev, [key]: prev[key] === false ? true : false }));
@@ -578,6 +583,43 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message, type });
+  }, []);
+
+  const handleModuleDragStart = useCallback((e: React.DragEvent, moduleId: string) => {
+    dragIdRef.current = moduleId;
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleModuleDragOver = useCallback((e: React.DragEvent, moduleId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragIdRef.current && dragIdRef.current !== moduleId) setDragOverId(moduleId);
+  }, []);
+
+  const handleModuleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = dragIdRef.current;
+    if (!sourceId || sourceId === targetId) { setDragOverId(null); return; }
+    setModuleOrder(prev => {
+      const arr = [...prev];
+      const fromIdx = arr.indexOf(sourceId);
+      const toIdx = arr.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, sourceId);
+      // Persist immediately
+      if (product?.id) {
+        try { localStorage.setItem(`moduleOrder_${product.id}`, JSON.stringify(arr)); } catch { /* ignore */ }
+      }
+      return arr;
+    });
+    setDragOverId(null);
+    dragIdRef.current = null;
+  }, [product?.id]);
+
+  const handleModuleDragEnd = useCallback(() => {
+    setDragOverId(null);
+    dragIdRef.current = null;
   }, []);
 
   // Manual / Automate items split
@@ -634,6 +676,26 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
       };
     });
   }, [productModulesList, manualItems, automateItems, coverageTypeTab]);
+
+  // Load saved order from localStorage when product/modules change
+  useEffect(() => {
+    const allIds = moduleStats.map(ms => ms.module.id);
+    if (allIds.length === 0) return;
+
+    const storageKey = product?.id ? `moduleOrder_${product.id}` : null;
+    const saved: string[] = storageKey
+      ? (() => { try { return JSON.parse(localStorage.getItem(storageKey) ?? '[]'); } catch { return []; } })()
+      : [];
+
+    setModuleOrder(() => {
+      const existingSet = new Set(allIds);
+      // Keep saved order, filter out deleted modules, append new ones at the end
+      const filtered = saved.filter((id: string) => existingSet.has(id));
+      const newIds = allIds.filter(id => !filtered.includes(id));
+      return filtered.length > 0 ? [...filtered, ...newIds] : allIds;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleStats, product?.id]);
 
   const groupedByModule = useMemo(() => {
     return productModulesList.map(mod => ({
@@ -1023,7 +1085,13 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
                   <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                     {/* Header */}
                     <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-4 flex-wrap">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Coverage by Module</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Coverage by Module</p>
+                        <span className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                          <GripVertical className="w-3 h-3" />
+                          Drag to reorder
+                        </span>
+                      </div>
                       <div className="flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
                         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block flex-shrink-0" />Full</span>
                         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block flex-shrink-0" />Partial</span>
@@ -1046,13 +1114,37 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
 
                     {/* Rows */}
                     <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                      {moduleStats.filter(ms => selectedModule === 'all' || ms.module.id === selectedModule).map(({ module, manual, automate }) => {
+                      {moduleStats
+                        .filter(ms => selectedModule === 'all' || ms.module.id === selectedModule)
+                        .sort((a, b) => {
+                          const ai = moduleOrder.indexOf(a.module.id);
+                          const bi = moduleOrder.indexOf(b.module.id);
+                          if (ai === -1 && bi === -1) return 0;
+                          if (ai === -1) return 1;
+                          if (bi === -1) return -1;
+                          return ai - bi;
+                        })
+                        .map(({ module, manual, automate }) => {
                         const subRows = moduleSubModuleStats[module.id] ?? [];
                         const isRowExpanded = expandedModuleRows[module.id] === true;
+                        const isDragOver = dragOverId === module.id;
                         return (
                           <React.Fragment key={module.id}>
-                            <div className="grid grid-cols-[minmax(120px,1fr)_minmax(220px,2fr)_minmax(220px,2fr)] hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
-                              <div className="px-5 py-4 flex items-center gap-2">
+                            <div
+                              draggable
+                              onDragStart={e => handleModuleDragStart(e, module.id)}
+                              onDragOver={e => handleModuleDragOver(e, module.id)}
+                              onDrop={e => handleModuleDrop(e, module.id)}
+                              onDragEnd={handleModuleDragEnd}
+                              style={isDragOver ? { boxShadow: 'inset 0 3px 0 0 #60a5fa' } : undefined}
+                              className={`grid grid-cols-[minmax(120px,1fr)_minmax(220px,2fr)_minmax(220px,2fr)] transition-colors cursor-grab active:cursor-grabbing
+                                ${isDragOver
+                                  ? 'bg-blue-50/40 dark:bg-blue-900/15'
+                                  : 'hover:bg-gray-50/50 dark:hover:bg-gray-700/20'
+                                }`}
+                            >
+                              <div className="px-3 py-4 flex items-center gap-1.5">
+                                <GripVertical className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab" />
                                 {subRows.length > 0 && (
                                   <button
                                     onClick={() => setExpandedModuleRows(prev => ({ ...prev, [module.id]: !isRowExpanded }))}
