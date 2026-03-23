@@ -585,19 +585,6 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
     setToast({ message, type });
   }, []);
 
-  // Sync module order when moduleStats updates (preserve user order, append new, remove deleted)
-  useEffect(() => {
-    setModuleOrder(prev => {
-      const allIds = moduleStats.map(ms => ms.module.id);
-      if (prev.length === 0) return allIds;
-      const existingSet = new Set(allIds);
-      const filtered = prev.filter(id => existingSet.has(id));
-      const newIds = allIds.filter(id => !prev.includes(id));
-      return [...filtered, ...newIds];
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moduleStats]);
-
   const handleModuleDragStart = useCallback((e: React.DragEvent, moduleId: string) => {
     dragIdRef.current = moduleId;
     e.dataTransfer.effectAllowed = 'move';
@@ -685,6 +672,19 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
       };
     });
   }, [productModulesList, manualItems, automateItems, coverageTypeTab]);
+
+  // Sync module order AFTER moduleStats is defined (preserve user order, append new, remove deleted)
+  useEffect(() => {
+    setModuleOrder(prev => {
+      const allIds = moduleStats.map(ms => ms.module.id);
+      if (prev.length === 0) return allIds;
+      const existingSet = new Set(allIds);
+      const filtered = prev.filter(id => existingSet.has(id));
+      const newIds = allIds.filter(id => !prev.includes(id));
+      return [...filtered, ...newIds];
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleStats]);
 
   const groupedByModule = useMemo(() => {
     return productModulesList.map(mod => ({
