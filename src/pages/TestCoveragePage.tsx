@@ -607,11 +607,15 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
       if (fromIdx === -1 || toIdx === -1) return prev;
       arr.splice(fromIdx, 1);
       arr.splice(toIdx, 0, sourceId);
+      // Persist immediately
+      if (product?.id) {
+        try { localStorage.setItem(`moduleOrder_${product.id}`, JSON.stringify(arr)); } catch { /* ignore */ }
+      }
       return arr;
     });
     setDragOverId(null);
     dragIdRef.current = null;
-  }, []);
+  }, [product?.id]);
 
   const handleModuleDragEnd = useCallback(() => {
     setDragOverId(null);
@@ -673,18 +677,25 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
     });
   }, [productModulesList, manualItems, automateItems, coverageTypeTab]);
 
-  // Sync module order AFTER moduleStats is defined (preserve user order, append new, remove deleted)
+  // Load saved order from localStorage when product/modules change
   useEffect(() => {
-    setModuleOrder(prev => {
-      const allIds = moduleStats.map(ms => ms.module.id);
-      if (prev.length === 0) return allIds;
+    const allIds = moduleStats.map(ms => ms.module.id);
+    if (allIds.length === 0) return;
+
+    const storageKey = product?.id ? `moduleOrder_${product.id}` : null;
+    const saved: string[] = storageKey
+      ? (() => { try { return JSON.parse(localStorage.getItem(storageKey) ?? '[]'); } catch { return []; } })()
+      : [];
+
+    setModuleOrder(() => {
       const existingSet = new Set(allIds);
-      const filtered = prev.filter(id => existingSet.has(id));
-      const newIds = allIds.filter(id => !prev.includes(id));
-      return [...filtered, ...newIds];
+      // Keep saved order, filter out deleted modules, append new ones at the end
+      const filtered = saved.filter((id: string) => existingSet.has(id));
+      const newIds = allIds.filter(id => !filtered.includes(id));
+      return filtered.length > 0 ? [...filtered, ...newIds] : allIds;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moduleStats]);
+  }, [moduleStats, product?.id]);
 
   const groupedByModule = useMemo(() => {
     return productModulesList.map(mod => ({
