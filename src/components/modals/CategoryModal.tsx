@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Category, CreateCategoryInput, UpdateCategoryInput } from '../../types';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 interface Props {
   isOpen: boolean;
@@ -121,10 +122,13 @@ export const CategoryModal: React.FC<Props> = ({
     }
   };
 
+  useScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
+      onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
       <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">

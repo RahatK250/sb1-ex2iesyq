@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, Settings, Plus, Edit, Trash2, Copy, X, ChevronLeft, ChevronRight, Package, Layers, Tag, Menu, FileSpreadsheet, MoreVertical, Files } from 'lucide-react';
 import { Product, TestData, Module, Category } from '../types';
-import { useDatabase } from '../hooks/useDatabase';
+import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { Toast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TestDataModal } from './modals/TestDataModal';
@@ -66,7 +66,7 @@ export const DataManagement: React.FC<Props> = ({
     message: '',
     onConfirm: () => {}
   });
-  const { createTestData, updateTestData, deleteTestData } = useDatabase();
+  const { createTestData, updateTestData, deleteTestData } = useDatabaseContext();
 
   // Load test data when filters change (with debounce to prevent infinite loading)
   React.useEffect(() => {

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVertical, GitBranch } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { Product, Module, Category, SubModule } from '../types';
-import { useDatabase } from '../hooks/useDatabase';
+import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { ProductModal } from '../components/modals/ProductModal';
 import { ModuleModal } from '../components/modals/ModuleModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
@@ -11,6 +12,7 @@ import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CustomDropdown } from '../components/CustomDropdown';
 import { MultiSelectDropdown } from '../components/MultiSelectDropdown';
+import { ProductFilterDropdown } from '../components/ProductFilterDropdown';
 
 type SettingsTab = 'products' | 'modules' | 'categories' | 'product-modules' | 'sub-modules';
 
@@ -46,6 +48,16 @@ export function SettingsPage({
   const [editingSubModule, setEditingSubModule] = useState<SubModule | null>(null);
   const [subModuleForm, setSubModuleForm] = useState({ name: '' });
   // Per-module multi-select link state: { [moduleId]: string[] of selected sub module ids }
+  const [subModuleLibraryModalOpen, setSubModuleLibraryModalOpen] = useState(false);
+  const [subModuleLibrarySearch, setSubModuleLibrarySearch] = useState('');
+
+  // Product Module "View All" modal — stores the product being expanded (null = closed)
+  const [productModuleViewAllId, setProductModuleViewAllId] = useState<string | null>(null);
+  const [productModuleViewAllSearch, setProductModuleViewAllSearch] = useState('');
+
+  useScrollLock(subModuleLibraryModalOpen);
+  useScrollLock(isSubModuleModalOpen);
+  useScrollLock(!!productModuleViewAllId);
   const [subModuleLinkSelections, setSubModuleLinkSelections] = useState<Record<string, string[]>>({});
   const [subModuleLinkLoadingModuleId, setSubModuleLinkLoadingModuleId] = useState<string | null>(null);
   const [subModuleModuleSearch, setSubModuleModuleSearch] = useState('');
@@ -142,7 +154,7 @@ export function SettingsPage({
     refetchProducts,
     refetchModules,
     refetchCategories
-  } = useDatabase();
+  } = useDatabaseContext();
 
   const [statusFilter, setStatusFilter] = React.useState<'active' | 'inactive' | 'all'>('active');
 
@@ -961,9 +973,84 @@ export function SettingsPage({
                   </button>
                 </div>
 
+                {/* View All modal — expands a single product's full module list */}
+                {productModuleViewAllId && (() => {
+                  const viewProduct = getProductsWithModules().find(p => p.id === productModuleViewAllId);
+                  if (!viewProduct) return null;
+                  const filtered = viewProduct.modules.filter((m: any) =>
+                    productModuleViewAllSearch === '' ||
+                    m.name.toLowerCase().includes(productModuleViewAllSearch.toLowerCase())
+                  );
+                  return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                      onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
+                      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        onClick={() => { setProductModuleViewAllId(null); setProductModuleViewAllSearch(''); }} />
+                      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-gray-700 flex flex-col max-h-[80vh]">
+                        {/* Modal Header */}
+                        <div className="flex items-center gap-4 px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+                          <img
+                            src={viewProduct.logo}
+                            alt={viewProduct.name}
+                            className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                            onError={e => { e.currentTarget.style.display = 'none'; }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">{viewProduct.name}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{viewProduct.modules.length} modules assigned</p>
+                          </div>
+                          <button
+                            onClick={() => { setProductModuleViewAllId(null); setProductModuleViewAllSearch(''); }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0">
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        {/* Search */}
+                        <div className="px-6 py-3 flex-shrink-0">
+                          <input
+                            type="text"
+                            placeholder="Search modules..."
+                            value={productModuleViewAllSearch}
+                            onChange={e => setProductModuleViewAllSearch(e.target.value)}
+                            className="select-enhanced w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
+                          />
+                        </div>
+                        {/* Grid */}
+                        <div className="overflow-y-auto px-6 pb-6 scroll-dashboard">
+                          {filtered.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {filtered.map((module: any) => (
+                                <div key={module.id}
+                                  className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 flex items-center justify-between">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <Layers className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{module.name}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteProductModule(viewProduct.id, module.id)}
+                                    className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
+                                    title="Remove module">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 text-center py-8">No modules found</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Products with their modules */}
                 <div className="space-y-6">
-                  {getProductsWithModules().filter(product => product.is_active).map((product) => (
+                  {getProductsWithModules().filter(product => product.is_active).map((product) => {
+                    const SHOW_ALL_THRESHOLD = 9; // > 3 rows (3 cols × 3 rows = 9)
+                    const hasViewAll = product.modules.length > SHOW_ALL_THRESHOLD;
+
+                    return (
                     <div
                       key={product.id}
                       className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 lg:p-6 border border-gray-200 dark:border-gray-600"
@@ -974,43 +1061,51 @@ export function SettingsPage({
                           src={product.logo}
                           alt={product.name}
                           className="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
                             {product.name}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             {product.modules.length} modules assigned
                           </p>
                         </div>
+                        {hasViewAll && (
+                          <button
+                            onClick={() => { setProductModuleViewAllId(product.id); setProductModuleViewAllSearch(''); }}
+                            className="text-xs text-orange-500 hover:text-orange-600 font-medium transition-colors flex-shrink-0"
+                          >
+                            View All →
+                          </button>
+                        )}
                       </div>
 
-                      {/* Assigned Modules */}
+                      {/* Assigned Modules — max 4 rows, scrollable */}
                       {product.modules.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {product.modules.map((module: any) => (
-                            <div
-                              key={module.id}
-                              className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600 flex items-center justify-between"
-                            >
-                              <div className="flex items-center space-x-3">
-                                <Layers className="w-5 h-5 text-gray-400" />
-                                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {module.name}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => handleDeleteProductModule(product.id, module.id)}
-                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                title="Remove module"
+                        <div className="max-h-[248px] overflow-y-auto scroll-dashboard rounded-lg">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {product.modules.map((module: any) => (
+                              <div
+                                key={module.id}
+                                className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600 flex items-center justify-between"
                               >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
+                                <div className="flex items-center space-x-3 min-w-0">
+                                  <Layers className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {module.name}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteProductModule(product.id, module.id)}
+                                  className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                  title="Remove module"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-8">
@@ -1062,7 +1157,8 @@ export function SettingsPage({
                         </button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {products.filter(p => p.is_active).length === 0 && (
@@ -1081,7 +1177,8 @@ export function SettingsPage({
               <>
                 {/* Sub Module inline modal */}
                 {isSubModuleModalOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSubModuleModalOpen(false)} />
                     <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 p-6">
                       <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
@@ -1125,28 +1222,115 @@ export function SettingsPage({
 
                 {/* Sub Modules library */}
                 <div className="mb-8">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Sub Module Library</h3>
-                  {(allSubModules && allSubModules.length > 0) ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {(allSubModules || []).filter((sm: SubModule) => sm.is_active !== false).map((sm: SubModule) => (
-                        <div key={sm.id} className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{sm.name}</span>
+                  {/* View All Modal */}
+                  {subModuleLibraryModalOpen && (() => {
+                    const filtered = (allSubModules || []).filter((sm: SubModule) =>
+                      sm.is_active !== false &&
+                      (subModuleLibrarySearch === '' || sm.name.toLowerCase().includes(subModuleLibrarySearch.toLowerCase()))
+                    );
+                    return (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        onWheel={e => e.stopPropagation()}
+                        onTouchMove={e => e.stopPropagation()}>
+                        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setSubModuleLibraryModalOpen(false); setSubModuleLibrarySearch(''); }} />
+                        <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-gray-700 flex flex-col max-h-[80vh]">
+                          {/* Modal Header */}
+                          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+                            <div>
+                              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sub Module Library</h3>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{(allSubModules || []).filter((sm: SubModule) => sm.is_active !== false).length} sub modules total</p>
+                            </div>
+                            <button onClick={() => { setSubModuleLibraryModalOpen(false); setSubModuleLibrarySearch(''); }}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                              <X className="w-5 h-5" />
+                            </button>
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={() => { setEditingSubModule(sm); setSubModuleForm({ name: sm.name }); setIsSubModuleModalOpen(true); }}
-                              className="p-1.5 rounded text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => handleDeleteSubModule(sm)}
-                              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                          {/* Search */}
+                          <div className="px-6 py-3 flex-shrink-0">
+                            <input
+                              type="text"
+                              placeholder="Search sub modules..."
+                              value={subModuleLibrarySearch}
+                              onChange={e => setSubModuleLibrarySearch(e.target.value)}
+                              className="select-enhanced w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
+                            />
+                          </div>
+                          {/* Grid */}
+                          <div className="overflow-y-auto px-6 pb-6 scroll-dashboard">
+                            {filtered.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {filtered.map((sm: SubModule) => (
+                                  <div key={sm.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{sm.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button onClick={() => { setEditingSubModule(sm); setSubModuleForm({ name: sm.name }); setIsSubModuleModalOpen(true); setSubModuleLibraryModalOpen(false); }}
+                                        className="p-1.5 rounded text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button onClick={() => { handleDeleteSubModule(sm); }}
+                                        className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-400 text-center py-8">No sub modules found</p>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Library header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                      Sub Module Library
+                      {allSubModules && allSubModules.filter((sm: SubModule) => sm.is_active !== false).length > 0 && (
+                        <span className="ml-2 text-xs font-normal text-gray-400 normal-case">
+                          ({allSubModules.filter((sm: SubModule) => sm.is_active !== false).length})
+                        </span>
+                      )}
+                    </h3>
+                    {(allSubModules || []).filter((sm: SubModule) => sm.is_active !== false).length > 12 && (
+                      <button onClick={() => setSubModuleLibraryModalOpen(true)}
+                        className="text-xs text-orange-500 hover:text-orange-600 font-medium transition-colors">
+                        View All →
+                      </button>
+                    )}
+                  </div>
+
+                  {(allSubModules && allSubModules.length > 0) ? (
+                    <>
+                      {/* Scrollable grid — max 4 rows */}
+                      <div className="max-h-[248px] overflow-y-auto scroll-dashboard rounded-lg">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {(allSubModules || []).filter((sm: SubModule) => sm.is_active !== false).map((sm: SubModule) => (
+                            <div key={sm.id} className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{sm.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button onClick={() => { setEditingSubModule(sm); setSubModuleForm({ name: sm.name }); setIsSubModuleModalOpen(true); }}
+                                  className="p-1.5 rounded text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => handleDeleteSubModule(sm)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <GitBranch className="w-10 h-10 text-gray-300 dark:text-gray-500 mx-auto mb-2" />
@@ -1162,14 +1346,12 @@ export function SettingsPage({
                   {/* Filter bar: Product filter + Search */}
                   <div className="flex flex-col sm:flex-row gap-3 mb-4">
                     {/* Product filter */}
-                    <CustomDropdown
-                      options={activeProducts.filter((p: any) => p.is_active !== false).map((p: any) => ({ id: p.id, name: p.name }))}
+                    <ProductFilterDropdown
+                      products={activeProducts.filter((p: any) => p.is_active !== false)}
                       selectedValue={subModuleProductFilter}
                       onValueChange={(v) => setSubModuleProductFilter(v)}
                       allText="All Products"
-                      placeholder="Select product"
-                      hasAllOption={true}
-                      className="sm:w-52"
+                      className="sm:w-56"
                     />
 
                     {/* Module search */}
@@ -1182,7 +1364,7 @@ export function SettingsPage({
                         placeholder="Search modules…"
                         value={subModuleModuleSearch}
                         onChange={e => setSubModuleModuleSearch(e.target.value)}
-                        className="select-enhanced w-full pl-10 pr-9 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
+                        className="select-enhanced w-full h-[46px] pl-10 pr-9 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm"
                       />
                       {subModuleModuleSearch && (
                         <button onClick={() => setSubModuleModuleSearch('')}
@@ -1238,12 +1420,51 @@ export function SettingsPage({
                           );
                           const unlinkedSubModules = (allSubModules || []).filter((sm: SubModule) => sm.is_active !== false && !globallyLinkedIds.has(sm.id));
 
+                          // Find product(s) this module belongs to
+                          const modProductIds = activeProductModules
+                            .filter((pm: any) => pm.module_id === mod.id && pm.is_active !== false)
+                            .map((pm: any) => pm.product_id);
+                          const modProducts = activeProducts.filter((p: any) => modProductIds.includes(p.id));
+
                           return (
                             <div key={mod.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Layers className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                                <span className="font-semibold text-gray-900 dark:text-white text-sm">{mod.name}</span>
-                                <span className="text-xs text-gray-400 dark:text-gray-500">{linkedSubModules.length} linked</span>
+                              {/* Module header: [product logo] [module icon] [name] [(n linked)] */}
+                              <div className="flex items-center gap-2.5 mb-3">
+                                {/* Product logo — prominent, left-most */}
+                                {modProducts.length > 0 ? (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {modProducts.map((p: any) => (
+                                      <div key={p.id} title={p.name}
+                                        className="w-7 h-7 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-600 flex items-center justify-center ring-1 ring-gray-200 dark:ring-gray-600 flex-shrink-0">
+                                        <img
+                                          src={p.logo}
+                                          alt={p.name}
+                                          className="w-full h-full object-cover"
+                                          onError={e => {
+                                            const el = e.currentTarget;
+                                            el.style.display = 'none';
+                                            const parent = el.parentElement;
+                                            if (parent) {
+                                              parent.innerHTML = `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-300">${p.name.slice(0,2).toUpperCase()}</span>`;
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <Layers className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                )}
+
+                                {/* Module name */}
+                                <span className="font-semibold text-gray-900 dark:text-white text-sm truncate min-w-0">
+                                  {mod.name}
+                                </span>
+
+                                {/* Linked count — right after name */}
+                                <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 font-normal">
+                                  ({linkedSubModules.length} linked)
+                                </span>
                               </div>
 
                               {/* Linked sub modules */}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Link } from 'lucide-react';
+import { X, Upload, Link, Loader2 } from 'lucide-react';
 import { Product, CreateProductInput, UpdateProductInput } from '../../types';
+import { useScrollLock } from '../../hooks/useScrollLock';
+import { supabase } from '../../lib/supabase';
 
 interface Props {
   isOpen: boolean;
@@ -83,15 +85,27 @@ export const ProductModal: React.FC<Props> = ({
     setValidationErrors({});
   }, [editData, isOpen]);
 
+  // Upload file to Supabase Storage and return its public URL
+  const uploadToStorage = async (file: File): Promise<string> => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from('product-logos').upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+    if (error) throw new Error(`Upload failed: ${error.message}`);
+    const { data } = supabase.storage.from('product-logos').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      // Show local preview immediately while upload happens on save
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setPreviewUrl(result);
-        setFormData(prev => ({ ...prev, logo: result }));
+      reader.onload = (ev) => {
+        setPreviewUrl(ev.target?.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -103,19 +117,22 @@ export const ProductModal: React.FC<Props> = ({
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate form before submission
-    if (!validateForm()) {
-      return;
-    }
-    
+    if (!validateForm()) return;
+
     setLoading(true);
-    
     try {
+      let logoUrl = formData.logo;
+
+      // If a file was picked, upload to Supabase Storage instead of storing base64
+      if (logoMethod === 'file' && selectedFile) {
+        logoUrl = await uploadToStorage(selectedFile);
+      }
+
+      const dataToSave = { ...formData, logo: logoUrl };
       if (editData) {
-        await onSave({ ...formData, id: editData.id });
+        await onSave({ ...dataToSave, id: editData.id });
       } else {
-        await onSave(formData);
+        await onSave(dataToSave);
       }
       onClose();
     } catch (error) {
@@ -125,10 +142,13 @@ export const ProductModal: React.FC<Props> = ({
     }
   };
 
+  useScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
+      onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
       <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
@@ -257,9 +277,12 @@ export const ProductModal: React.FC<Props> = ({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2 sm:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-4 py-2 sm:py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              {loading ? 'Saving...' : texts.save}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading
+                ? (logoMethod === 'file' && selectedFile ? 'Uploading…' : 'Saving…')
+                : texts.save}
             </button>
           </div>
         </form>

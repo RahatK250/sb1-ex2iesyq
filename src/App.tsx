@@ -7,7 +7,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { FeatureSelectionPage } from './pages/FeatureSelectionPage';
 import { TestCoveragePage } from './pages/TestCoveragePage';
 import { CoverageOverviewPage } from './pages/CoverageOverviewPage';
-import { useDatabase } from './hooks/useDatabase';
+import { useDatabaseContext } from './contexts/DatabaseContext';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -24,7 +24,7 @@ function AppContent() {
     toggleTheme,
   } = useApp();
 
-  const { products, modules, categories, allProducts, allModules, allCategories, testData, loading, loadTestData, productModules, moduleSubModules, subModules, allSubModules, getModulesByProduct } = useDatabase();
+  const { products, modules, categories, allProducts, allModules, allCategories, testData, loading, loadTestData, productModules, moduleSubModules, subModules, allSubModules, getModulesByProduct } = useDatabaseContext();
 
   // Memoize the loadTestData function to prevent unnecessary re-renders
   const memoizedLoadTestData = React.useCallback(loadTestData, []);

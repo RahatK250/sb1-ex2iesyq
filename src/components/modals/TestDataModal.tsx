@@ -3,6 +3,7 @@ import { X, Plus, Minus, Minimize2, Maximize2 } from 'lucide-react';
 import { Product, Module, Category, TestData, CreateTestDataInput, UpdateTestDataInput } from '../../types';
 import { CustomDropdown } from '../CustomDropdown';
 import { CustomProductDropdown } from '../CustomProductDropdown';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 interface Props {
   isOpen: boolean;
@@ -51,30 +52,8 @@ export const TestDataModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
-  // Handle background scroll based on minimize state
-  useEffect(() => {
-    if (isOpen) {
-      if (isMinimized) {
-        // Allow background scroll when minimized
-        document.body.style.overflow = 'unset';
-        document.documentElement.style.overflow = 'unset';
-      } else {
-        // Prevent background scroll when maximized
-        document.body.style.overflow = 'hidden';
-        document.documentElement.style.overflow = 'hidden';
-      }
-    } else {
-      // Restore background scroll when modal is closed
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
-    }
-    
-    // Cleanup function to restore scroll when component unmounts
-    return () => {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
-    };
-  }, [isOpen, isMinimized]);
+  // Lock scroll only when open and maximized
+  useScrollLock(isOpen && !isMinimized);
 
   const texts = {
     addTestData: 'Create Test Data',
@@ -329,10 +308,13 @@ export const TestDataModal: React.FC<Props> = ({
 
   return (
     <div className={`fixed flex z-50 ${
-      isMinimized 
+      isMinimized
         ? 'bottom-6 right-6 inset-auto bg-transparent'
         : 'inset-0 items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50'
-    }`}>
+    }`}
+      onWheel={!isMinimized ? e => e.stopPropagation() : undefined}
+      onTouchMove={!isMinimized ? e => e.stopPropagation() : undefined}
+    >
       <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-2xl ${
         isMinimized 
           ? 'w-80 h-14 overflow-hidden' 

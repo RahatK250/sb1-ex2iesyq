@@ -17,7 +17,6 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     schema: 'public'
   },
   realtime: {
-    logger: console.log,
     params: {
       eventsPerSecond: 10
     }
