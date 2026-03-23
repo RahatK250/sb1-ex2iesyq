@@ -44,11 +44,16 @@ const MiniDonut: React.FC<{ full: number; partial: number; none: number; size?: 
   const pP = total > 0 ? partial / total : 0;
   const pN = total > 0 ? none / total : 0;
 
-  const seg = (pct: number, color: string, offset: number) =>
-    pct > 0 ? (
+  const seg = (pct: number, color: string, offset: number) => {
+    if (pct <= 0) return null;
+    if (pct >= 0.9999) {
+      return <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw} />;
+    }
+    return (
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${pct * C} ${C}`} strokeDashoffset={-offset} />
-    ) : null;
+    );
+  };
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">

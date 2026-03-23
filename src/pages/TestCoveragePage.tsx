@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Product, Module, ProductModule, SubModule, ModuleSubModule, CoverageType, CoverageStatus, TestCoverageItem, CreateTestCoverageItemInput, UpdateTestCoverageItemInput } from '../types';
 import { useCoverage } from '../hooks/useCoverage';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { Toast } from '../components/Toast';
 import { CustomDropdown } from '../components/CustomDropdown';
 import { getSubModules, getAllModuleSubModules } from '../services/database';
@@ -48,11 +49,17 @@ const DonutChart: React.FC<{ full: number; partial: number; none: number; size?:
   const pctNone    = total > 0 ? none / total : 0;
   const sw = size * 0.16;
 
-  const seg = (pct: number, color: string, offset: number) =>
-    pct > 0 ? (
+  const seg = (pct: number, color: string, offset: number) => {
+    if (pct <= 0) return null;
+    if (pct >= 0.9999) {
+      // Full circle — render without dash to avoid seam gap
+      return <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw} />;
+    }
+    return (
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${pct * C} ${C}`} strokeDashoffset={-offset} />
-    ) : null;
+    );
+  };
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -187,10 +194,7 @@ const CoverageItemModal: React.FC<ModalProps> = ({
     setErrors({});
   }, [isOpen, editItem, defaultModuleId, defaultSubModuleId, modules]);
 
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+  useScrollLock(isOpen);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -218,7 +222,8 @@ const CoverageItemModal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700">
         {/* Header */}
@@ -347,9 +352,11 @@ const ConfirmDeleteDialog: React.FC<{
   isOpen: boolean; itemName: string;
   onConfirm: () => void; onCancel: () => void; loading?: boolean;
 }> = ({ isOpen, itemName, onConfirm, onCancel, loading }) => {
+  useScrollLock(isOpen);
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Item</h3>

@@ -3,7 +3,7 @@ import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X, Info } 
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { Product, Module, Category } from '../types';
-import { useDatabase } from '../hooks/useDatabase';
+import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { Toast } from './Toast';
 
 interface Props {
@@ -67,7 +67,7 @@ export const ExcelImport: React.FC<Props> = ({
     type: 'success' as 'success' | 'error' | 'warning' 
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { createTestData } = useDatabase();
+  const { createTestData } = useDatabaseContext();
 
   // Reset form when modal opens/closes
   React.useEffect(() => {

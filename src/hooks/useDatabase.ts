@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Product,
@@ -22,6 +22,10 @@ import {
 import * as db from '../services/database';
 
 export const useDatabase = () => {
+  // Unique ID per hook instance so Supabase channel names don't collide when
+  // multiple components (e.g. App + SettingsPage) each call useDatabase().
+  const instanceId = useRef(Math.random().toString(36).slice(2, 8)).current;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,124 +44,161 @@ export const useDatabase = () => {
   useEffect(() => {
     console.log('Setting up realtime subscriptions...');
     
-    // Products subscription
+    // Products subscription — update state directly from payload (no extra queries)
     const productsSubscription = supabase
-      .channel('products-changes')
-      .on('postgres_changes', 
+      .channel(`products-changes-${instanceId}`)
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
-        async (payload) => {
-          console.log('Products change detected:', payload);
-          // Reload products data
-          try {
-            const [productsData, allProductsData] = await Promise.all([
-              db.getProducts(),
-              db.getAllProducts()
-            ]);
-            setProducts(productsData);
-            setAllProducts(allProductsData);
-            console.log('Products updated successfully');
-          } catch (error) {
-            console.error('Error reloading products:', error);
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const p = payload.new as Product;
+            setAllProducts(prev => [...prev, p].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)));
+            if (p.is_active !== false) setProducts(prev => [...prev, p].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const p = payload.new as Product;
+            setAllProducts(prev => prev.map(x => x.id === p.id ? p : x));
+            setProducts(prev => {
+              const exists = prev.some(x => x.id === p.id);
+              if (p.is_active !== false) return exists ? prev.map(x => x.id === p.id ? p : x) : [...prev, p];
+              return prev.filter(x => x.id !== p.id);
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = (payload.old as Product).id;
+            setAllProducts(prev => prev.filter(x => x.id !== id));
+            setProducts(prev => prev.filter(x => x.id !== id));
           }
         }
       )
       .subscribe();
 
-    // Modules subscription
+    // Modules subscription — payload-based update
     const modulesSubscription = supabase
-      .channel('modules-changes')
-      .on('postgres_changes', 
+      .channel(`modules-changes-${instanceId}`)
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'modules' },
-        async (payload) => {
-          console.log('Modules change detected:', payload);
-          // Reload modules data
-          try {
-            const [modulesData, allModulesData] = await Promise.all([
-              db.getModules(),
-              db.getAllModules()
-            ]);
-            setModules(modulesData);
-            setAllModules(allModulesData);
-            console.log('Modules updated successfully');
-          } catch (error) {
-            console.error('Error reloading modules:', error);
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const m = payload.new as Module;
+            setAllModules(prev => [...prev, m].sort((a, b) => a.name.localeCompare(b.name)));
+            if (m.is_active !== false) setModules(prev => [...prev, m].sort((a, b) => a.name.localeCompare(b.name)));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const m = payload.new as Module;
+            setAllModules(prev => prev.map(x => x.id === m.id ? m : x));
+            setModules(prev => {
+              const exists = prev.some(x => x.id === m.id);
+              if (m.is_active !== false) return exists ? prev.map(x => x.id === m.id ? m : x) : [...prev, m];
+              return prev.filter(x => x.id !== m.id);
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = (payload.old as Module).id;
+            setAllModules(prev => prev.filter(x => x.id !== id));
+            setModules(prev => prev.filter(x => x.id !== id));
           }
         }
       )
       .subscribe();
 
-    // Categories subscription
+    // Categories subscription — payload-based update
     const categoriesSubscription = supabase
-      .channel('categories-changes')
-      .on('postgres_changes', 
+      .channel(`categories-changes-${instanceId}`)
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'categories' },
-        async (payload) => {
-          console.log('Categories change detected:', payload);
-          // Reload categories data
-          try {
-            const [categoriesData, allCategoriesData] = await Promise.all([
-              db.getCategories(),
-              db.getAllCategories()
-            ]);
-            setCategories(categoriesData);
-            setAllCategories(allCategoriesData);
-            console.log('Categories updated successfully');
-          } catch (error) {
-            console.error('Error reloading categories:', error);
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const c = payload.new as Category;
+            setAllCategories(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)));
+            if (c.is_active !== false) setCategories(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const c = payload.new as Category;
+            setAllCategories(prev => prev.map(x => x.id === c.id ? c : x));
+            setCategories(prev => {
+              const exists = prev.some(x => x.id === c.id);
+              if (c.is_active !== false) return exists ? prev.map(x => x.id === c.id ? c : x) : [...prev, c];
+              return prev.filter(x => x.id !== c.id);
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = (payload.old as Category).id;
+            setAllCategories(prev => prev.filter(x => x.id !== id));
+            setCategories(prev => prev.filter(x => x.id !== id));
           }
         }
       )
       .subscribe();
 
-    // Product Modules subscription
+    // Product Modules subscription — payload-based update
     const productModulesSubscription = supabase
-      .channel('product-modules-changes')
-      .on('postgres_changes', 
+      .channel(`product-modules-changes-${instanceId}`)
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'product_modules' },
-        async (payload) => {
-          console.log('Product modules change detected:', payload);
-          // Reload product modules data
-          try {
-            const productModulesData = await db.getAllProductModules();
-            setProductModules(productModulesData);
-            console.log('Product modules updated successfully');
-          } catch (error) {
-            console.error('Error reloading product modules:', error);
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const pm = payload.new;
+            setProductModules(prev => {
+              const exists = prev.some(x => x.id === pm.id);
+              return exists ? prev.map(x => x.id === pm.id ? pm : x) : [...prev, pm];
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const pm = payload.new;
+            setProductModules(prev => prev.map(x => x.id === pm.id ? pm : x));
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = payload.old.id;
+            setProductModules(prev => prev.filter(x => x.id !== id));
           }
         }
       )
       .subscribe();
 
-    // Sub Modules subscription
+    // Sub Modules subscription — payload-based update
     const subModulesSubscription = supabase
-      .channel('sub-modules-changes')
+      .channel(`sub-modules-changes-${instanceId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'sub_modules' },
-        async () => {
-          try {
-            const [active, all] = await Promise.all([db.getSubModules(), db.getAllSubModules()]);
-            setSubModules(active);
-            setAllSubModules(all);
-          } catch (error) { console.error('Error reloading sub_modules:', error); }
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const s = payload.new as SubModule;
+            setAllSubModules(prev => [...prev, s]);
+            if (s.is_active !== false) setSubModules(prev => [...prev, s]);
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const s = payload.new as SubModule;
+            setAllSubModules(prev => prev.map(x => x.id === s.id ? s : x));
+            setSubModules(prev => {
+              const exists = prev.some(x => x.id === s.id);
+              if (s.is_active !== false) return exists ? prev.map(x => x.id === s.id ? s : x) : [...prev, s];
+              return prev.filter(x => x.id !== s.id);
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = (payload.old as SubModule).id;
+            setAllSubModules(prev => prev.filter(x => x.id !== id));
+            setSubModules(prev => prev.filter(x => x.id !== id));
+          }
         }
       ).subscribe();
 
-    // Module Sub Modules subscription
+    // Module Sub Modules subscription — payload-based update
     const moduleSubModulesSubscription = supabase
-      .channel('module-sub-modules-changes')
+      .channel(`module-sub-modules-changes-${instanceId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'module_sub_modules' },
-        async () => {
-          try {
-            const data = await db.getAllModuleSubModules();
-            setModuleSubModules(data);
-          } catch (error) { console.error('Error reloading module_sub_modules:', error); }
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const msm = payload.new as ModuleSubModule;
+            setModuleSubModules(prev => {
+              const exists = prev.some(x => x.id === msm.id);
+              return exists ? prev.map(x => x.id === msm.id ? msm : x) : [...prev, msm];
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const msm = payload.new as ModuleSubModule;
+            setModuleSubModules(prev => prev.map(x => x.id === msm.id ? msm : x));
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const id = (payload.old as ModuleSubModule).id;
+            setModuleSubModules(prev => prev.filter(x => x.id !== id));
+          }
         }
       ).subscribe();
 
     // Test Data subscription
     const testDataSubscription = supabase
-      .channel('test-data-changes')
+      .channel(`test-data-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'test_data' },
         async (payload) => {
@@ -185,16 +226,7 @@ export const useDatabase = () => {
       )
       .subscribe();
 
-    // Check subscription status
-    setTimeout(() => {
-      console.log('Subscription statuses:', {
-        products: productsSubscription.state,
-        modules: modulesSubscription.state,
-        categories: categoriesSubscription.state,
-        productModules: productModulesSubscription.state,
-        testData: testDataSubscription.state
-      });
-    }, 1000);
+    // (subscription status logging removed — reduces noise)
 
     // Cleanup subscriptions
     return () => {
@@ -211,6 +243,7 @@ export const useDatabase = () => {
 
   // Load initial data
   const loadData = async () => {
+    setLoading(true);
     setError(null);
     try {
       const [productsData, modulesData, categoriesData, allProductsData, allModulesData, allCategoriesData, productModulesData, subModulesData, allSubModulesData, moduleSubModulesData] = await Promise.all([
@@ -239,10 +272,7 @@ export const useDatabase = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      // Add a small delay to ensure smooth loading experience
-      setTimeout(() => {
-        setLoading(false);
-      }, 500);
+      setLoading(false);
     }
   };
 
