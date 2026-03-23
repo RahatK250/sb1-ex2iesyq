@@ -1377,7 +1377,14 @@ export function SettingsPage({
 
                   {/* Filtered module list */}
                   {(() => {
-                    // Get module IDs visible for selected product
+                    // Get module IDs that belong to at least one active product
+                    const modulesWithProduct = new Set(
+                      activeProductModules
+                        .filter((pm: any) => pm.is_active !== false)
+                        .map((pm: any) => pm.module_id)
+                    );
+
+                    // Get module IDs visible for the selected product filter
                     const productFilteredModuleIds = subModuleProductFilter === 'all'
                       ? null
                       : activeProductModules
@@ -1386,6 +1393,8 @@ export function SettingsPage({
 
                     const visibleModules = activeModules.filter((m: Module) => {
                       if (m.is_active === false) return false;
+                      // Always hide modules that are not linked to any product
+                      if (!modulesWithProduct.has(m.id)) return false;
                       if (productFilteredModuleIds && !productFilteredModuleIds.includes(m.id)) return false;
                       if (subModuleModuleSearch.trim()) {
                         return m.name.toLowerCase().includes(subModuleModuleSearch.toLowerCase());
