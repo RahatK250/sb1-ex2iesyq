@@ -51,7 +51,7 @@ const DonutChart: React.FC<{ full: number; partial: number; none: number; size?:
   const seg = (pct: number, color: string, offset: number) =>
     pct > 0 ? (
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
-        strokeDasharray={`${pct * C} ${C}`} strokeDashoffset={-offset} />
+        strokeDasharray={`${pct >= 0.9999 ? C + 1 : pct * C} ${C}`} strokeDashoffset={-offset} />
     ) : null;
 
   return (

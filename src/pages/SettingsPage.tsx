@@ -118,6 +118,7 @@ export function SettingsPage({
     subModules: dbSubModules,
     allSubModules,
     moduleSubModules: dbModuleSubModules,
+    loading: dbLoading,
     createModule,
     updateModule,
     deleteModule,
@@ -166,11 +167,11 @@ export function SettingsPage({
     })();
   }, [statusFilter, activeTab, refetchModules, refetchCategories, refetchProducts]);
 
-  // Prefer hook state for UI (keeps toggles in sync); fall back to props if hook empty
-  const activeProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : products;
-  const activeModules = (dbModules && dbModules.length > 0) ? dbModules : modules;
-  const activeCategories = (dbCategories && dbCategories.length > 0) ? dbCategories : categories;
-  const activeProductModules = (dbProductModules && dbProductModules.length > 0) ? dbProductModules : productModules;
+  // Use hook state only — hook owns a separate useDatabase() instance with Realtime subscriptions
+  const activeProducts = dbProducts;
+  const activeModules = dbModules;
+  const activeCategories = dbCategories;
+  const activeProductModules = dbProductModules;
   const activeSubModules = dbSubModules || [];
   const activeModuleSubModules = dbModuleSubModules || [];
 
@@ -778,31 +779,28 @@ export function SettingsPage({
 
   // Get products grouped with their modules
   const getProductsWithModules = () => {
-    // Use allProducts when filter requires showing inactive items, otherwise use activeProducts
-    const sourceProducts = statusFilter === 'all' || statusFilter === 'inactive'
-      ? (allProducts && allProducts.length > 0 ? allProducts : activeProducts)
-      : activeProducts;
+    // Always source from allProducts (hook owns the data); filter by statusFilter
+    const sourceProducts = statusFilter === 'active'
+      ? allProducts.filter(p => p.is_active)
+      : statusFilter === 'inactive'
+        ? allProducts.filter(p => !p.is_active)
+        : allProducts;
 
     return sourceProducts.map(product => ({
       ...product,
       modules: getModulesForProduct(product.id)
     }));
   };
-  
+
   // Get sorted products for display
   const getSortedProducts = () => {
-    let source: any[] = activeProducts;
-    if (statusFilter === 'all') {
-      source = (allProducts && allProducts.length > 0) ? allProducts : activeProducts;
-    } else if (statusFilter === 'inactive') {
-      source = (allProducts && allProducts.length > 0) ? allProducts.filter(p => !p.is_active) : activeProducts.filter(p => !p.is_active);
-    }
+    const source = statusFilter === 'active'
+      ? allProducts.filter(p => p.is_active)
+      : statusFilter === 'inactive'
+        ? allProducts.filter(p => !p.is_active)
+        : allProducts;
 
-    return [...source].sort((a, b) => {
-      const orderA = a.display_order || 0;
-      const orderB = b.display_order || 0;
-      return orderA - orderB;
-    });
+    return [...source].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   };
   
   const tabs = [
@@ -1340,6 +1338,11 @@ export function SettingsPage({
                 {/* Data Cards */}
                 {activeTab === 'products' ? (
                   // Products with drag and drop
+                  dbLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    </div>
+                  ) :
                   <div className="space-y-4">
                     {getSortedProducts().map((item: any, index) => (
                       <div
@@ -1533,7 +1536,7 @@ export function SettingsPage({
                   </div>
                 )}
 
-                {displayedGridItems.length === 0 && activeTabData && (
+                {!dbLoading && displayedGridItems.length === 0 && activeTabData && (
                   <div className="text-center py-8 lg:py-12">
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 lg:p-8">
                       <div className="text-gray-500 dark:text-gray-400 mb-4">

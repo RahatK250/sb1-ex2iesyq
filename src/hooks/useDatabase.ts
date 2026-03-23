@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Product,
@@ -22,6 +22,10 @@ import {
 import * as db from '../services/database';
 
 export const useDatabase = () => {
+  // Unique ID per hook instance so Supabase channel names don't collide when
+  // multiple components (e.g. App + SettingsPage) each call useDatabase().
+  const instanceId = useRef(Math.random().toString(36).slice(2, 8)).current;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -42,7 +46,7 @@ export const useDatabase = () => {
     
     // Products subscription
     const productsSubscription = supabase
-      .channel('products-changes')
+      .channel(`products-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'products' },
         async (payload) => {
@@ -65,7 +69,7 @@ export const useDatabase = () => {
 
     // Modules subscription
     const modulesSubscription = supabase
-      .channel('modules-changes')
+      .channel(`modules-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'modules' },
         async (payload) => {
@@ -88,7 +92,7 @@ export const useDatabase = () => {
 
     // Categories subscription
     const categoriesSubscription = supabase
-      .channel('categories-changes')
+      .channel(`categories-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'categories' },
         async (payload) => {
@@ -111,7 +115,7 @@ export const useDatabase = () => {
 
     // Product Modules subscription
     const productModulesSubscription = supabase
-      .channel('product-modules-changes')
+      .channel(`product-modules-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'product_modules' },
         async (payload) => {
@@ -130,7 +134,7 @@ export const useDatabase = () => {
 
     // Sub Modules subscription
     const subModulesSubscription = supabase
-      .channel('sub-modules-changes')
+      .channel(`sub-modules-changes-${instanceId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'sub_modules' },
         async () => {
@@ -144,7 +148,7 @@ export const useDatabase = () => {
 
     // Module Sub Modules subscription
     const moduleSubModulesSubscription = supabase
-      .channel('module-sub-modules-changes')
+      .channel(`module-sub-modules-changes-${instanceId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'module_sub_modules' },
         async () => {
@@ -157,7 +161,7 @@ export const useDatabase = () => {
 
     // Test Data subscription
     const testDataSubscription = supabase
-      .channel('test-data-changes')
+      .channel(`test-data-changes-${instanceId}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'test_data' },
         async (payload) => {
@@ -211,6 +215,7 @@ export const useDatabase = () => {
 
   // Load initial data
   const loadData = async () => {
+    setLoading(true);
     setError(null);
     try {
       const [productsData, modulesData, categoriesData, allProductsData, allModulesData, allCategoriesData, productModulesData, subModulesData, allSubModulesData, moduleSubModulesData] = await Promise.all([
@@ -239,10 +244,7 @@ export const useDatabase = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      // Add a small delay to ensure smooth loading experience
-      setTimeout(() => {
-        setLoading(false);
-      }, 500);
+      setLoading(false);
     }
   };
 
