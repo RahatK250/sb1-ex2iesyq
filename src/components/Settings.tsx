@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVertical } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { Product, Module, Category } from '../types';
-import { useDatabase } from '../hooks/useDatabase';
+import { useDatabaseContext } from '../contexts/DatabaseContext';
 import { ProductModal } from './modals/ProductModal';
 import { ModuleModal } from './modals/ModuleModal';
 import { CategoryModal } from './modals/CategoryModal';
@@ -120,7 +120,7 @@ export function Settings({
     refetchProducts,
     refetchModules,
     refetchCategories
-  } = useDatabase();
+  } = useDatabaseContext();
 
   const [statusFilter, setStatusFilter] = React.useState<'active' | 'inactive' | 'all'>('active');
 
