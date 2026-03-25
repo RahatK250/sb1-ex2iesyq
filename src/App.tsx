@@ -7,10 +7,39 @@ import { SettingsPage } from './pages/SettingsPage';
 import { FeatureSelectionPage } from './pages/FeatureSelectionPage';
 import { TestCoveragePage } from './pages/TestCoveragePage';
 import { CoverageOverviewPage } from './pages/CoverageOverviewPage';
+import { LoginPage } from './pages/LoginPage';
 import { useDatabaseContext } from './contexts/DatabaseContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+
+// Wraps routes that require authentication
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <img
+            src="https://cdn-icons-png.flaticon.com/512/11569/11569487.png"
+            alt="Qollect Logo"
+            className="w-16 h-16"
+          />
+          <div className="w-6 h-6 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 function AppContent() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const {
     state,
     searchQuery,
@@ -36,92 +65,110 @@ function AppContent() {
 
   return (
     <Routes>
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+
       <Route
         path="/"
         element={
-          <HomePage
-            products={products}
-            onSelectProduct={selectProduct}
-          />
+          <ProtectedRoute>
+            <HomePage
+              products={products}
+              onSelectProduct={selectProduct}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/features/:productName"
         element={
-          <FeatureSelectionPage
-            selectedProduct={state.selectedProduct}
-            products={products}
-            onSelectProduct={selectProduct}
-          />
+          <ProtectedRoute>
+            <FeatureSelectionPage
+              selectedProduct={state.selectedProduct}
+              products={products}
+              onSelectProduct={selectProduct}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/data/:productName"
         element={
-          <DataPage
-            selectedProduct={state.selectedProduct}
-            products={products}
-            modules={modules}
-            categories={categories}
-            testData={testData}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedModule={selectedModule}
-            onModuleChange={setSelectedModule}
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-            onProductChange={changeProduct}
-            onLoadTestData={memoizedLoadTestData}
-            onGetModulesByProduct={memoizedGetModulesByProduct}
-          />
+          <ProtectedRoute>
+            <DataPage
+              selectedProduct={state.selectedProduct}
+              products={products}
+              modules={modules}
+              categories={categories}
+              testData={testData}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedModule={selectedModule}
+              onModuleChange={setSelectedModule}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+              onProductChange={changeProduct}
+              onLoadTestData={memoizedLoadTestData}
+              onGetModulesByProduct={memoizedGetModulesByProduct}
+              currentUser={user}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/test-coverage/:productName"
         element={
-          <TestCoveragePage
-            selectedProduct={state.selectedProduct}
-            products={allProducts}
-            modules={allModules}
-            productModules={productModules}
-            subModules={subModules}
-            allSubModules={allSubModules}
-            moduleSubModules={moduleSubModules}
-          />
+          <ProtectedRoute>
+            <TestCoveragePage
+              selectedProduct={state.selectedProduct}
+              products={allProducts}
+              modules={allModules}
+              productModules={productModules}
+              subModules={subModules}
+              allSubModules={allSubModules}
+              moduleSubModules={moduleSubModules}
+              currentUser={user}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/settings"
         element={
-          <SettingsPage
-            products={allProducts}
-            modules={allModules}
-            categories={allCategories}
-            productModules={productModules}
-            onNavigateBack={handleNavigateBack}
-          />
+          <ProtectedRoute>
+            <SettingsPage
+              products={allProducts}
+              modules={allModules}
+              categories={allCategories}
+              productModules={productModules}
+              onNavigateBack={handleNavigateBack}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/settings/:tab"
         element={
-          <SettingsPage
-            products={allProducts}
-            modules={allModules}
-            categories={allCategories}
-            productModules={productModules}
-            onNavigateBack={handleNavigateBack}
-          />
+          <ProtectedRoute>
+            <SettingsPage
+              products={allProducts}
+              modules={allModules}
+              categories={allCategories}
+              productModules={productModules}
+              onNavigateBack={handleNavigateBack}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/coverage-overview"
         element={
-          <CoverageOverviewPage
-            products={allProducts}
-            productModules={productModules}
-            modules={allModules}
-          />
+          <ProtectedRoute>
+            <CoverageOverviewPage
+              products={allProducts}
+              productModules={productModules}
+              modules={allModules}
+            />
+          </ProtectedRoute>
         }
       />
       {/* Redirect unknown routes to home */}
@@ -132,9 +179,11 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

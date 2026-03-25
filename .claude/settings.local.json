@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
       "Bash(git -C \"C:/Users/RahatKotama/Documents/GitHub/sb1-ex2iesyq/.claude/worktrees/jolly-williams\" status)",

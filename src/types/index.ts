@@ -6,6 +6,8 @@ export interface Product {
   created_at?: string;
   updated_at?: string;
   is_active?: boolean;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface Module {
@@ -14,6 +16,8 @@ export interface Module {
   created_at?: string;
   updated_at?: string;
   is_active?: boolean;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface Category {
@@ -24,6 +28,8 @@ export interface Category {
   created_at?: string;
   updated_at?: string;
   is_active?: boolean;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface TestData {
@@ -37,6 +43,8 @@ export interface TestData {
   expected: string;
   created_at: string;
   updated_at?: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface Language {
@@ -60,38 +68,50 @@ export interface CreateTestDataInput {
   category_id: string | null;
   test_data: string;
   expected: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateTestDataInput extends Partial<CreateTestDataInput> {
   id: string;
+  updated_by?: string;
 }
 
 export interface CreateProductInput {
   name: string;
   logo: string;
   display_order?: number;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {
   id: string;
+  updated_by?: string;
 }
 
 export interface CreateModuleInput {
   name: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateModuleInput extends Partial<CreateModuleInput> {
   id: string;
+  updated_by?: string;
 }
 
 export interface CreateCategoryInput {
   name: string;
   tag: string;
   color: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateCategoryInput extends Partial<CreateCategoryInput> {
   id: string;
+  updated_by?: string;
 }
 
 export interface ProductModule {
@@ -118,15 +138,20 @@ export interface SubModule {
   created_at?: string;
   updated_at?: string;
   is_active?: boolean;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface CreateSubModuleInput {
   name: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateSubModuleInput extends Partial<CreateSubModuleInput> {
   id: string;
   is_active?: boolean;
+  updated_by?: string;
 }
 
 export interface ModuleSubModule {
@@ -158,6 +183,8 @@ export interface TestCoverageItem {
   notes: string;
   created_at: string;
   updated_at?: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface CreateTestCoverageItemInput {
@@ -169,6 +196,8 @@ export interface CreateTestCoverageItemInput {
   coverage_type: CoverageType;
   coverage_status: CoverageStatus;
   notes?: string;
+  created_by?: string;
+  updated_by?: string;
 }
 
 export interface UpdateTestCoverageItemInput {
@@ -180,4 +209,5 @@ export interface UpdateTestCoverageItemInput {
   coverage_type?: CoverageType;
   coverage_status?: CoverageStatus;
   notes?: string;
+  updated_by?: string;
 }

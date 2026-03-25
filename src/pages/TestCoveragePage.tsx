@@ -2,8 +2,10 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Settings, CheckCircle2,
-  AlertCircle, XCircle, ChevronDown, X, Save, Loader2, GitBranch, LayoutGrid, GripVertical,
+  AlertCircle, XCircle, ChevronDown, X, Save, Loader2, GitBranch, LayoutGrid, GripVertical, LogOut, User,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { AuthUser } from '../context/AuthContext';
 import { Product, Module, ProductModule, SubModule, ModuleSubModule, CoverageType, CoverageStatus, TestCoverageItem, CreateTestCoverageItemInput, UpdateTestCoverageItemInput } from '../types';
 import { useCoverage } from '../hooks/useCoverage';
 import { useScrollLock } from '../hooks/useScrollLock';
@@ -500,10 +502,12 @@ interface Props {
   allSubModules: SubModule[];
   moduleSubModules: ModuleSubModule[];
   onProductChange?: (product: Product) => void;
+  currentUser?: AuthUser | null;
 }
 
-export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, modules, productModules, subModules, moduleSubModules }) => {
+export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, modules, productModules, subModules, moduleSubModules, currentUser }) => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const { productName } = useParams<{ productName: string }>();
 
   const product = useMemo(() => {
@@ -824,6 +828,7 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
   // The tab's type gets the selected status; the other defaults to no_coverage.
   const handleSaveNew = async (data: NewItemFormData) => {
     try {
+      const userLabel = currentUser?.displayName ?? currentUser?.email ?? undefined;
       const base: Omit<CreateTestCoverageItemInput, 'coverage_type' | 'coverage_status'> = {
         product_id: product?.id ?? '',
         module_id: data.module_id,
@@ -831,6 +836,8 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
         name: data.name,
         description: data.description,
         notes: data.notes,
+        created_by: userLabel,
+        updated_by: userLabel,
       };
 
       // Determine which type is "primary" (gets the user-chosen status)
@@ -848,7 +855,10 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
 
   const handleSaveEdit = async (data: UpdateTestCoverageItemInput) => {
     try {
-      await updateCoverageItem(data);
+      await updateCoverageItem({
+        ...data,
+        updated_by: currentUser?.displayName ?? currentUser?.email ?? undefined,
+      });
       showToast('Coverage item updated');
     } catch {
       showToast('Failed to save. Please try again.', 'error');
@@ -859,7 +869,11 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
   const handleQuickStatusChange = async (item: TestCoverageItem) => {
     setUpdatingStatusId(item.id);
     try {
-      await updateCoverageItem({ id: item.id, coverage_status: nextStatus(item.coverage_status) });
+      await updateCoverageItem({
+        id: item.id,
+        coverage_status: nextStatus(item.coverage_status),
+        updated_by: currentUser?.displayName ?? currentUser?.email ?? undefined,
+      });
     } catch {
       showToast('Failed to update status', 'error');
     } finally {
@@ -905,25 +919,69 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
             Back
           </button>
 
-          <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Settings + User info + logout */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button onClick={() => navigate('/settings')}
+              className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex-shrink-0 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+
+            {currentUser && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                    <User className="w-3 h-3 text-white" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 hidden sm:block max-w-[120px] truncate">{currentUser.displayName}</span>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Sign Out"
+                  className="flex items-center gap-1 text-sm text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors flex-shrink-0 px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tabs row + Product Switcher (below header) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between pb-3">
+          {/* Coverage Type Tabs */}
+          <div className="flex gap-1">
+            {(['all', 'automate', 'manual'] as const).map(tab => (
+              <button key={tab} onClick={() => setCoverageTypeTab(tab)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${coverageTypeTab === tab
+                  ? 'bg-orange-500 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                {tab === 'all' ? 'Overview' : tab === 'automate' ? 'Automate' : 'Manual'}
+              </button>
+            ))}
+          </div>
+
+          {/* All Products + Product Switcher */}
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => navigate('/coverage-overview')}
               title="Coverage Overview — All Products"
-              className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex-shrink-0 px-2 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20">
+              className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20">
               <LayoutGrid className="w-4 h-4" />
-              <span className="hidden sm:inline">All Products</span>
+              <span className="hidden sm:inline text-xs">All Products</span>
             </button>
 
-            {/* Product switcher — right of All Products, left of Settings */}
+            {/* Product switcher */}
             <div className="relative">
               <button
                 onClick={() => setShowProductSwitcher(v => !v)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all hover:bg-gray-100 dark:hover:bg-gray-700/70"
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
               >
                 {product?.logo ? (
-                  <img src={product.logo} alt="" className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
+                  <img src={product.logo} alt="" className="w-5 h-5 rounded-md object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0">
+                  <div className="w-5 h-5 rounded-md bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white font-bold text-xs">{product?.name?.charAt(0)}</span>
                   </div>
                 )}
@@ -960,25 +1018,7 @@ export const TestCoveragePage: React.FC<Props> = ({ selectedProduct, products, m
                 </div>
               )}
             </div>
-
-            <button onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex-shrink-0 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Settings</span>
-            </button>
           </div>
-        </div>
-
-        {/* Coverage Type Tabs */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 pb-3">
-          {(['all', 'automate', 'manual'] as const).map(tab => (
-            <button key={tab} onClick={() => setCoverageTypeTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${coverageTypeTab === tab
-                ? 'bg-orange-500 text-white'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-              {tab === 'all' ? 'Overview' : tab === 'automate' ? 'Automate' : 'Manual'}
-            </button>
-          ))}
         </div>
       </div>
 
