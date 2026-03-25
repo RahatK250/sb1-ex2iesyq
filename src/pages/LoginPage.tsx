@@ -24,8 +24,23 @@ export const LoginPage: React.FC = () => {
     if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
+  // ── Clear stuck MSAL interaction lock ────────────────────────────────────────
+  const clearMsalLocks = () => {
+    try {
+      Object.keys(sessionStorage)
+        .filter(k =>
+          k.includes('interaction.status') ||
+          k.includes('request.origin') ||
+          k.includes('acquireToken') ||
+          k.startsWith('msal.') && k.includes('interaction')
+        )
+        .forEach(k => sessionStorage.removeItem(k));
+    } catch { /* noop */ }
+  };
+
   // ── Microsoft login ──────────────────────────────────────────────────────────
   const handleLogin = async () => {
+    clearMsalLocks();          // ล้าง lock ก่อนทุกครั้ง
     setIsLoading(true);
     setError(null);
     try {
