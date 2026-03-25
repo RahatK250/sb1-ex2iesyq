@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Authenticating...</title>
+  <style>
+    body { margin: 0; background: #111827; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    p { color: #9ca3af; font-family: sans-serif; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <p>Signing in...</p>
+  <script src="https://alcdn.msauth.net/browser/3.27.0/js/msal-browser.min.js"></script>
+  <script>
+    (async function () {
+      try {
+        var instance = new msal.PublicClientApplication({
+          auth: {
+            clientId: '8737d565-1e9b-42ad-a4f5-637c7fd80b24',
+            authority: 'https://login.microsoftonline.com/fba85537-b66c-4838-8798-e7f776f42fe3',
+            redirectUri: window.location.origin + '/auth.html'
+          },
+          cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
+        });
+        await instance.initialize();
+        await instance.handleRedirectPromise();
+      } catch (e) {
+        console.error('Auth popup error:', e);
+      }
+    })();
+  </script>
+</body>
+</html>

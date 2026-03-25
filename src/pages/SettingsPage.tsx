@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Pencil, Package, Layers, Tag, Link, Trash2, X, GripVer
 import { Loader2 } from 'lucide-react';
 import { Product, Module, Category, SubModule } from '../types';
 import { useDatabaseContext } from '../contexts/DatabaseContext';
+import { useAuth } from '../context/AuthContext';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { ProductModal } from '../components/modals/ProductModal';
 import { ModuleModal } from '../components/modals/ModuleModal';
@@ -155,6 +156,9 @@ export function SettingsPage({
     refetchModules,
     refetchCategories
   } = useDatabaseContext();
+
+  const { user: currentUser } = useAuth();
+  const userLabel = currentUser?.displayName ?? currentUser?.email ?? undefined;
 
   const [statusFilter, setStatusFilter] = React.useState<'active' | 'inactive' | 'all'>('active');
 
@@ -417,10 +421,10 @@ export function SettingsPage({
     if (!subModuleForm.name.trim()) return;
     try {
       if (editingSubModule) {
-        await updateSubModule({ id: editingSubModule.id, name: subModuleForm.name.trim() });
+        await updateSubModule({ id: editingSubModule.id, name: subModuleForm.name.trim(), updated_by: userLabel });
         showToast(`Sub Module "${subModuleForm.name}" updated`, 'success');
       } else {
-        await createSubModule({ name: subModuleForm.name.trim() });
+        await createSubModule({ name: subModuleForm.name.trim(), created_by: userLabel, updated_by: userLabel });
         showToast(`Sub Module "${subModuleForm.name}" created`, 'success');
       }
       setIsSubModuleModalOpen(false);
@@ -500,7 +504,7 @@ export function SettingsPage({
     setInlineModuleLoading(true);
     try {
       // 1. Create the module
-      const newModule = await createModule({ name });
+      const newModule = await createModule({ name, created_by: userLabel, updated_by: userLabel });
       // 2. Link it to the product
       await createProductModule(productId, newModule.id);
       showToast(`Module "${name}" created and assigned`, 'success');
@@ -516,32 +520,28 @@ export function SettingsPage({
   const handleProductSave = async (data: any) => {
     try {
       if (editingProduct) {
-        await updateProduct({ ...data, id: editingProduct.id });
-        
-        // Force refresh หลังจากอัปเดตสำเร็จ
+        await updateProduct({ ...data, id: editingProduct.id, updated_by: userLabel });
+
         setTimeout(async () => {
           try {
             await refetchProducts();
-            console.log('Products refreshed after edit');
           } catch (refreshError) {
             console.error('Error refreshing products after edit:', refreshError);
           }
         }, 100);
-        
+
         showToast(`Product "${data.name}" updated successfully`, 'success');
       } else {
-        await createProduct(data);
-        
-        // Force refresh หลังจากสร้างสำเร็จ
+        await createProduct({ ...data, created_by: userLabel, updated_by: userLabel });
+
         setTimeout(async () => {
           try {
             await refetchProducts();
-            console.log('Products refreshed after create');
           } catch (refreshError) {
             console.error('Error refreshing products after create:', refreshError);
           }
         }, 100);
-        
+
         showToast(`Product "${data.name}" created successfully`, 'success');
       }
       setIsProductModalOpen(false);
@@ -554,10 +554,10 @@ export function SettingsPage({
   const handleModuleSave = async (data: any) => {
     try {
       if (editingModule) {
-        await updateModule({ ...data, id: editingModule.id });
+        await updateModule({ ...data, id: editingModule.id, updated_by: userLabel });
         showToast(`Module "${data.name}" updated successfully`, 'success');
       } else {
-        await createModule(data);
+        await createModule({ ...data, created_by: userLabel, updated_by: userLabel });
         showToast(`Module "${data.name}" created successfully`, 'success');
       }
       setIsModuleModalOpen(false);
@@ -570,10 +570,10 @@ export function SettingsPage({
   const handleCategorySave = async (data: any) => {
     try {
       if (editingCategory) {
-        await updateCategory({ ...data, id: editingCategory.id });
+        await updateCategory({ ...data, id: editingCategory.id, updated_by: userLabel });
         showToast(`Category "${data.name}" updated successfully`, 'success');
       } else {
-        await createCategory(data);
+        await createCategory({ ...data, created_by: userLabel, updated_by: userLabel });
         showToast(`Category "${data.name}" created successfully`, 'success');
       }
       setIsCategoryModalOpen(false);

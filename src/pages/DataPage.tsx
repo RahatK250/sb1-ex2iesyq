@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DataManagement } from '../components/DataManagement';
 import { Product, TestData, Module, Category } from '../types';
+import { AuthUser } from '../context/AuthContext';
 
 interface Props {
   selectedProduct: Product | null;
@@ -23,6 +24,7 @@ interface Props {
     search?: string;
   }) => Promise<void>;
   onGetModulesByProduct: (productId: string) => Promise<Module[]>;
+  currentUser: AuthUser | null;
 }
 
 // Helper function to convert product name to URL-safe slug
@@ -54,6 +56,7 @@ export const DataPage: React.FC<Props> = ({
   onProductChange,
   onLoadTestData,
   onGetModulesByProduct,
+  currentUser,
 }) => {
   const navigate = useNavigate();
   const { productName } = useParams<{ productName: string }>();
@@ -123,6 +126,7 @@ export const DataPage: React.FC<Props> = ({
       onNavigateBackToFeatures={handleNavigateBackToFeatures}
       onLoadTestData={onLoadTestData}
       onGetModulesByProduct={onGetModulesByProduct}
+      currentUser={currentUser}
     />
   );
 };
